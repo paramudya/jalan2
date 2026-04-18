@@ -2,7 +2,11 @@ jalan2 paling enak naik transum
 
 Inspired by none other than Chronotrains (https://www.chronotrains.com/en?city=Leuven%2CBE) Assisted by Claude <3 and sometimes ChatGPT when my Claude usage is over limit
 
-# structure
+# for user
+access here: https://jalan2-beta.vercel.app
+
+# for developer 
+## structure
 
 ```
 krl_map.html
@@ -13,5 +17,5 @@ data/
   └── landmarks.js   — nearby landmarks per station (dummy data)
 ```
 
-# 
+## preview (20260417)
 ![Home screen](assets/ss/260418-1.jpeg)
