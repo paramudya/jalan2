@@ -1,5 +1,4 @@
 // KRL network stations
-// Each station: { lat, lng, lines: ['<line-code>', ...] }
 window.KRL_STATIONS = {
   'Bogor':{lat:-6.5949,lng:106.7891,lines:['B']},
   'Cilebut':{lat:-6.5386,lng:106.8010,lines:['B']},
@@ -25,7 +24,6 @@ window.KRL_STATIONS = {
   'Mangga Besar':{lat:-6.1500,lng:106.8281,lines:['B']},
   'Jayakarta':{lat:-6.1414,lng:106.8250,lines:['B']},
   'Jakarta Kota':{lat:-6.1373,lng:106.8139,lines:['B','P']},
-
   'Matraman':{lat:-6.2034,lng:106.8614,lines:['C']},
   'Jatinegara':{lat:-6.2158,lng:106.8705,lines:['C','R']},
   'Klender':{lat:-6.2189,lng:106.8930,lines:['C']},
@@ -52,7 +50,6 @@ window.KRL_STATIONS = {
   'Karet':{lat:-6.1988,lng:106.8178,lines:['C']},
   'Sudirman':{lat:-6.2037,lng:106.8228,lines:['C','R']},
   'Tanah Abang':{lat:-6.1859,lng:106.8121,lines:['C','R']},
-
   'Palmerah':{lat:-6.2090,lng:106.7988,lines:['R']},
   'Kebayoran':{lat:-6.2411,lng:106.7827,lines:['R']},
   'Pondok Ranji':{lat:-6.2790,lng:106.7413,lines:['R']},
@@ -71,7 +68,6 @@ window.KRL_STATIONS = {
   'Maja':{lat:-6.3647,lng:106.3870,lines:['R']},
   'Citeras':{lat:-6.3716,lng:106.3293,lines:['R']},
   'Rangkasbitung':{lat:-6.3537,lng:106.2505,lines:['R']},
-
   'Grogol':{lat:-6.1659,lng:106.7905,lines:['T']},
   'Pesing':{lat:-6.1663,lng:106.7675,lines:['T']},
   'Bojong Indah':{lat:-6.1638,lng:106.7471,lines:['T']},
@@ -80,7 +76,6 @@ window.KRL_STATIONS = {
   'Poris':{lat:-6.1634,lng:106.6678,lines:['T']},
   'Batu Ceper':{lat:-6.1672,lng:106.6520,lines:['T']},
   'Tangerang':{lat:-6.1782,lng:106.6278,lines:['T']},
-
   'Ancol':{lat:-6.1241,lng:106.8348,lines:['P']},
   'Tanjung Priok':{lat:-6.1059,lng:106.8804,lines:['P']}
 };

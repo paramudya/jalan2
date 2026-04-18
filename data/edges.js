@@ -1,7 +1,5 @@
 // KRL network edges
-// Each edge: [stationA, stationB, lineCode, travelTimeMinutes]
 window.KRL_EDGES = [
-  // --- Bogor line (B) ---
   ['Bogor','Cilebut','B',6],
   ['Cilebut','Bojong Gede','B',5],
   ['Bojong Gede','Citayam','B',5],
@@ -25,8 +23,6 @@ window.KRL_EDGES = [
   ['Sawah Besar','Mangga Besar','B',2],
   ['Mangga Besar','Jayakarta','B',2],
   ['Jayakarta','Jakarta Kota','B',3],
-
-  // --- Cikarang line (C) ---
   ['Manggarai','Matraman','C',3],
   ['Matraman','Jatinegara','C',3],
   ['Jatinegara','Klender','C',4],
@@ -54,8 +50,6 @@ window.KRL_EDGES = [
   ['Tanah Abang','Karet','C',3],
   ['Karet','Sudirman','C',3],
   ['Sudirman','Manggarai','C',4],
-
-  // --- Rangkasbitung line (R) ---
   ['Tanah Abang','Palmerah','R',4],
   ['Palmerah','Kebayoran','R',4],
   ['Kebayoran','Pondok Ranji','R',4],
@@ -74,8 +68,6 @@ window.KRL_EDGES = [
   ['Cikoya','Maja','R',4],
   ['Maja','Citeras','R',5],
   ['Citeras','Rangkasbitung','R',5],
-
-  // --- Tangerang line (T) ---
   ['Duri','Grogol','T',4],
   ['Grogol','Pesing','T',3],
   ['Pesing','Bojong Indah','T',3],
@@ -84,8 +76,6 @@ window.KRL_EDGES = [
   ['Kalideres','Poris','T',4],
   ['Poris','Batu Ceper','T',3],
   ['Batu Ceper','Tangerang','T',5],
-
-  // --- Tanjung Priok line (P) ---
   ['Jakarta Kota','Kampung Bandan','P',4],
   ['Kampung Bandan','Ancol','P',4],
   ['Ancol','Tanjung Priok','P',5]

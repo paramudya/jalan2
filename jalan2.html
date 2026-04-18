@@ -1,0 +1,2165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Transun reachability — Jakarta</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0e1420;
+    --ink-2: #2a3242;
+    --mute: #6b7588;
+    --mute-2: #98a1b3;
+    --hair: #e6e9ef;
+    --hair-2: #eef1f6;
+    --bg: #f6f7fa;
+    --card: #ffffff;
+    --accent: #10b981;
+    --accent-ink: #065f46;
+    --accent-soft: #d8f3e5;
+    --accent-dark: #047857;
+    --shadow-lg: 0 10px 30px -10px rgba(14,20,32,.18), 0 2px 6px rgba(14,20,32,.05);
+    --shadow-sm: 0 1px 2px rgba(14,20,32,.06), 0 2px 8px rgba(14,20,32,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.005em;
+  }
+
+  /* Layout shell */
+  .shell {
+    position: relative; width: 100%; height: 100vh; min-height: 720px;
+    overflow: hidden; background: #e9edf2;
+  }
+  #krl-map { position: absolute; inset: 0; background: #eef2f6; }
+
+  /* Subtle vignette around the map edges */
+  .vignette {
+    position: absolute; inset: 0; pointer-events: none; z-index: 390;
+    box-shadow: inset 0 0 140px rgba(14,20,32,.08);
+  }
+
+  /* Top toolbar */
+  .toolbar-wrap {
+    position: absolute; top: 20px; left: 20px; right: 20px; z-index: 500;
+    display: flex; justify-content: center; pointer-events: none;
+  }
+  .toolbar {
+    pointer-events: auto;
+    background: rgba(255,255,255,.96);
+    backdrop-filter: saturate(140%) blur(8px);
+    -webkit-backdrop-filter: saturate(140%) blur(8px);
+    border: 1px solid rgba(14,20,32,.06);
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+    padding: 14px 18px 12px;
+    width: min(1040px, 100%);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    column-gap: 18px;
+    align-items: center;
+  }
+
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    padding-right: 16px; border-right: 1px solid var(--hair);
+    height: 100%;
+  }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: var(--ink);
+    display: grid; place-items: center; color: #fff;
+    box-shadow: inset 0 -3px 0 rgba(255,255,255,.08);
+  }
+  .brand-name { font-weight: 700; font-size: 14px; letter-spacing: -0.01em; line-height: 1; }
+  .brand-sub { font-size: 11px; color: var(--mute); margin-top: 3px; }
+
+  /* Mode toggle */
+  .mode-toggle {
+    display: inline-flex; align-items: center; gap: 2px;
+    background: var(--panel-2); border-radius: 999px; padding: 3px;
+    margin: 0 auto 8px; width: fit-content;
+  }
+  .mode-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: transparent; border: none; color: var(--mute);
+    padding: 6px 14px; border-radius: 999px; cursor: pointer;
+    font-family: inherit; font-size: 12px; font-weight: 600;
+    transition: background .18s, color .18s;
+  }
+  .mode-btn:hover { color: var(--ink); }
+  .mode-btn.active { background: var(--ink); color: #fff; box-shadow: 0 1px 2px rgba(14,20,32,.18); }
+
+  /* Middle column: question + scrubber */
+  .center-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .question {
+    font-size: 14px; color: var(--ink-2); font-weight: 500;
+    text-align: center; line-height: 1.3;
+  }
+  .question .origin-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--accent-soft); color: var(--accent-dark);
+    padding: 2px 9px; border-radius: 999px; font-weight: 600;
+    margin-left: 4px;
+  }
+  .question .origin-pill::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(16,185,129,.2);
+  }
+
+  .scrubber {
+    position: relative; padding: 6px 8px 0;
+  }
+  #time-slider {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 6px; background: transparent;
+    margin: 0; cursor: pointer;
+  }
+  #time-slider::-webkit-slider-runnable-track {
+    height: 6px; border-radius: 999px;
+    background: linear-gradient(to right,
+      var(--accent) 0%, var(--accent) var(--pct,14%),
+      var(--hair) var(--pct,14%), var(--hair) 100%);
+  }
+  #time-slider::-moz-range-track { height: 6px; background: var(--hair); border-radius: 999px; }
+  #time-slider::-moz-range-progress { height: 6px; background: var(--accent); border-radius: 999px; }
+  #time-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 40px; height: 24px; margin-top: -9px;
+    background: #fff;
+    border: 2px solid var(--accent);
+    border-radius: 999px;
+    box-shadow: 0 1px 4px rgba(6,95,70,.25), 0 3px 8px rgba(6,95,70,.15);
+    cursor: grab;
+    position: relative;
+  }
+  #time-slider::-webkit-slider-thumb:hover { border-color: var(--accent-dark); }
+  #time-slider::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(0.97); }
+  #time-slider::-moz-range-thumb {
+    width: 36px; height: 22px; background: #fff;
+    border: 2px solid var(--accent); border-radius: 999px; cursor: grab;
+  }
+
+  .thumb-icon {
+    position: absolute; top: 0; pointer-events: none;
+    width: 40px; height: 24px; display: grid; place-items: center;
+    transform: translateX(-50%);
+    color: var(--accent-dark);
+  }
+
+  .ticks {
+    display: flex; justify-content: space-between;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 10.5px; color: var(--mute-2);
+    padding: 8px 2px 0; letter-spacing: 0.02em;
+  }
+  .ticks span { position: relative; text-align: center; }
+  .ticks span::before {
+    content: ""; position: absolute; top: -6px; left: 50%;
+    width: 1px; height: 4px; background: var(--hair);
+    transform: translateX(-50%);
+  }
+
+  .time-chip {
+    position: absolute; top: -30px;
+    background: var(--ink); color: #fff;
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: 0.01em;
+    pointer-events: none; transform: translateX(-50%);
+    white-space: nowrap; box-shadow: 0 4px 12px rgba(14,20,32,.25);
+    font-variant-numeric: tabular-nums;
+    transition: opacity .15s;
+  }
+  .time-chip::after {
+    content: ""; position: absolute; bottom: -4px; left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 7px; height: 7px; background: var(--ink);
+  }
+
+  /* Right column: controls */
+  .ctl-group {
+    display: flex; align-items: center; gap: 8px;
+    padding-left: 16px; border-left: 1px solid var(--hair);
+    height: 100%;
+  }
+  .ctl-btn {
+    width: 40px; height: 40px; border-radius: 11px;
+    background: var(--ink); color: #fff; border: none;
+    cursor: pointer; display: grid; place-items: center;
+    transition: background .15s, transform .1s;
+    flex-shrink: 0;
+  }
+  .ctl-btn:hover { background: var(--ink-2); }
+  .ctl-btn:active { transform: scale(0.96); }
+  .ctl-btn.active { background: var(--accent); }
+  .ctl-btn.ghost {
+    background: var(--card); color: var(--ink-2);
+    border: 1px solid var(--hair);
+  }
+  .ctl-btn.ghost:hover { background: var(--hair-2); }
+
+  /* Search */
+  .search-wrap {
+    position: relative;
+    display: flex; align-items: center;
+    background: var(--card);
+    border: 1px solid var(--hair);
+    border-radius: 11px;
+    height: 40px; padding: 0 10px 0 34px;
+    width: 220px; transition: all .15s;
+  }
+  .search-wrap:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(16,185,129,.14);
+  }
+  .search-wrap svg { position: absolute; left: 12px; color: var(--mute); }
+  #search-input {
+    border: none; outline: none; background: transparent;
+    font-family: inherit; font-size: 13px; color: var(--ink);
+    width: 100%; height: 100%;
+  }
+  #search-input::placeholder { color: var(--mute); }
+
+  #search-results {
+    display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+    background: var(--card); border: 1px solid var(--hair);
+    border-radius: 12px; max-height: 320px; overflow-y: auto;
+    z-index: 600; box-shadow: var(--shadow-lg);
+    padding: 4px;
+  }
+  .search-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 10px; gap: 10px;
+    font-size: 13px; border-radius: 8px; cursor: pointer;
+  }
+  .search-row:hover, .search-row.active { background: var(--hair-2); }
+  .search-row .stn-name { font-weight: 500; color: var(--ink); }
+  .search-row .meta-r { display: flex; align-items: center; gap: 8px; }
+  .search-row .lines-label {
+    font-size: 10.5px; color: var(--mute);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  .search-row .line-dots { display: flex; gap: 3px; }
+  .search-row .line-dots span { width: 7px; height: 7px; border-radius: 50%; }
+  .search-row mark { background: #fef3c7; color: var(--ink); padding: 0 2px; border-radius: 3px; }
+
+  /* Stats strip */
+  .stats {
+    position: absolute; left: 20px; bottom: 20px; z-index: 500;
+    background: rgba(255,255,255,.97);
+    backdrop-filter: saturate(140%) blur(8px);
+    border: 1px solid rgba(14,20,32,.06);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+    padding: 14px 16px;
+    width: 240px;
+  }
+  .stats-title {
+    font-size: 10.5px; font-weight: 600; color: var(--mute);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .stat-row {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 6px 0; border-top: 1px solid var(--hair-2);
+  }
+  .stat-row:first-of-type { border-top: none; padding-top: 0; }
+  .stat-row .label { font-size: 12px; color: var(--mute); }
+  .stat-row .value {
+    font-size: 20px; font-weight: 600; color: var(--ink);
+    font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  }
+  .stat-row .value small { font-size: 11px; font-weight: 500; color: var(--mute); margin-left: 3px; }
+
+  .stat-block { padding: 8px 0; border-top: 1px solid var(--hair-2); }
+  .stat-block:first-of-type { border-top: none; padding-top: 0; }
+  .stat-block .stat-label { font-size: 11px; color: var(--mute); margin-bottom: 5px; }
+  .stat-block .stat-numbers {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .stat-block .stat-main {
+    font-size: 20px; font-weight: 700;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1;
+    transition: color .2s;
+  }
+  .stat-block .stat-main small {
+    font-size: 11px; font-weight: 500; margin-left: 2px;
+    transition: color .2s;
+  }
+  .stat-block .stat-sub {
+    font-size: 11px; font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    transition: color .2s;
+  }
+
+  /* colour themes: only the big number changes color */
+  .stat-theme-green .stat-main   { color: var(--accent); }
+  .stat-theme-green .stat-main small { color: var(--mute); }
+  .stat-theme-green .stat-sub    { color: var(--mute); }
+  .stat-theme-orange .stat-main  { color: #f97316; }
+  .stat-theme-orange .stat-main small { color: var(--mute); }
+  .stat-theme-orange .stat-sub   { color: var(--mute); }
+
+  /* bar stack — two bars that hug each other */
+  .bar-stack { display: flex; flex-direction: column; gap: 2px; }
+
+  /* green bar: always visible */
+  .bar-track-green {
+    height: 5px; background: var(--hair-2); border-radius: 999px;
+    overflow: hidden; position: relative;
+    flex-shrink: 0;
+  }
+
+  /* orange bar: collapses to blank space in transun mode, expands in car mode */
+  .bar-track-orange {
+    height: 0; background: var(--hair-2); border-radius: 999px;
+    overflow: hidden; position: relative;
+    flex-shrink: 0;
+    transition: height .22s ease, margin-top .22s ease;
+    margin-top: 0;
+  }
+  .bar-track-orange.visible {
+    height: 5px;
+    margin-top: 0;
+  }
+
+  .bar-fill {
+    height: 100%; border-radius: 999px;
+    transition: width .28s ease;
+    position: absolute; left: 0; top: 0;
+  }
+  .bar-fill.green  { background: var(--accent); }
+  .bar-fill.orange { background: #f97316; }
+
+  /* Vertical radius slider */
+  .radius-ctl {
+    position: absolute; right: 20px; top: 50%; z-index: 500;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,.97);
+    backdrop-filter: saturate(140%) blur(8px);
+    border: 1px solid rgba(14,20,32,.06);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+    padding: 14px 10px 12px;
+    width: 74px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .radius-title {
+    font-size: 9.5px; font-weight: 600; color: var(--mute);
+    letter-spacing: 0.08em; text-transform: uppercase; text-align: center;
+  }
+  .radius-val {
+    font-size: 18px; font-weight: 700; color: var(--ink);
+    font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+    display: flex; align-items: baseline; gap: 2px;
+  }
+  .radius-val small { font-size: 10px; font-weight: 500; color: var(--mute); }
+  .radius-track {
+    position: relative; width: 28px; height: 180px;
+    display: grid; place-items: center;
+  }
+  #radius-slider {
+    -webkit-appearance: slider-vertical; appearance: slider-vertical;
+    writing-mode: bt-lr;
+    width: 6px; height: 180px;
+    background: transparent; margin: 0; cursor: pointer;
+    accent-color: var(--accent);
+  }
+  .radius-scale {
+    display: flex; flex-direction: column; justify-content: space-between;
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    height: 170px; font-size: 9px; color: var(--mute-2);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    pointer-events: none;
+  }
+
+  /* Legend */
+  .legend {
+    position: absolute; right: 20px; bottom: 20px; z-index: 500;
+    background: rgba(255,255,255,.97);
+    backdrop-filter: saturate(140%) blur(8px);
+    border: 1px solid rgba(14,20,32,.06);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+    padding: 12px 14px;
+  }
+  .legend-title {
+    font-size: 10.5px; font-weight: 600; color: var(--mute);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .legend-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--ink-2); padding: 3px 0;
+  }
+  .legend-swatch { width: 14px; display: grid; place-items: center; flex-shrink: 0; }
+  .legend .dot-origin { width: 11px; height: 11px; border-radius: 50%; background: #fff; border: 2.5px solid var(--ink); }
+  .legend .dot-terminus { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 0 0 1.5px var(--accent); }
+  .legend .dot-interchange { width: 10px; height: 10px; border-radius: 50%; background: transparent; border: 1.5px solid var(--accent); box-shadow: inset 0 0 0 2px #fff; }
+  .legend .blob-swatch { width: 16px; height: 10px; border-radius: 999px; background: rgba(16,185,129,.2); border: 1.5px solid var(--accent); }
+
+  /* Station dots */
+  .stn-marker { background: transparent !important; border: none !important; }
+  .stn-dot { border-radius: 50%; }
+  .stn-dot.interchange {
+    width: 10px; height: 10px;
+    background: #fff; border: 1.5px solid var(--accent);
+    box-shadow: 0 1px 2px rgba(14,20,32,.15);
+    position: relative;
+  }
+  .stn-dot.interchange::after { display: none; }
+  .stn-dot.terminus {
+    width: 10px; height: 10px;
+    background: var(--accent); border: 2px solid #fff;
+    box-shadow: 0 0 0 1.5px var(--accent), 0 1px 4px rgba(14,20,32,.20);
+  }
+  .stn-dot.origin {
+    width: 16px; height: 16px;
+    background: #fff; border: 3px solid var(--ink);
+    box-shadow: 0 2px 6px rgba(14,20,32,.3), 0 0 0 4px rgba(16,185,129,.18);
+  }
+  .stn-dot.reachable-small {
+    width: 6px; height: 6px;
+    background: #059669; opacity: 0.75;
+    box-shadow: 0 0 0 1.5px rgba(255,255,255,0.8);
+  }
+  .stn-dot.unreached-small {
+    width: 5px; height: 5px;
+    background: #c5cdd6;
+    box-shadow: 0 0 0 1.5px #fff;
+  }
+  .stn-dot.hidden-hit {
+    width: 22px; height: 22px; background: transparent; border: none; cursor: pointer;
+  }
+
+  .stn-label {
+    background: transparent !important; border: none !important;
+    font-size: 11px; font-weight: 500; color: var(--ink);
+    text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff,
+                 0 -1.5px 0 #fff, 0 1.5px 0 #fff, -1.5px 0 0 #fff, 1.5px 0 0 #fff;
+    white-space: nowrap; pointer-events: none;
+    letter-spacing: -0.005em;
+  }
+  .stn-label.origin { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .stn-label.terminus { font-size: 11.5px; font-weight: 600; color: var(--accent-dark); }
+
+  /* Landmarks */
+  .landmark-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; border: 2px solid var(--accent);
+    box-shadow: 0 1px 3px rgba(6,95,70,.3);
+  }
+  .landmark-label {
+    background: transparent !important; border: none !important;
+    font-size: 10px; font-weight: 500; color: var(--accent-dark);
+    text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff,
+                 0 -1.5px 0 #fff, 0 1.5px 0 #fff, -1.5px 0 0 #fff, 1.5px 0 0 #fff;
+    white-space: nowrap; pointer-events: none;
+  }
+
+  /* Popup */
+  .stn-popup .leaflet-popup-content-wrapper {
+    border-radius: 14px; padding: 0; overflow: hidden;
+    box-shadow: 0 12px 32px rgba(14,20,32,.18), 0 2px 8px rgba(14,20,32,.06);
+    border: 1px solid rgba(14,20,32,.05);
+  }
+  .stn-popup .leaflet-popup-content {
+    margin: 0; padding: 0; width: 264px !important;
+    font-family: 'Inter', sans-serif;
+  }
+  .stn-popup .leaflet-popup-tip { box-shadow: 0 6px 16px rgba(14,20,32,.15); }
+  .stn-popup .leaflet-popup-close-button {
+    color: var(--mute); font-size: 18px; padding: 6px 8px 0 0 !important;
+  }
+
+  .popup-header {
+    padding: 14px 16px 12px;
+    background: linear-gradient(135deg, #fdfdfd 0%, #f6f7fa 100%);
+    border-bottom: 1px solid var(--hair-2);
+  }
+  .popup-title {
+    font-size: 15px; font-weight: 600; color: var(--ink);
+    margin: 0 0 4px; letter-spacing: -0.01em;
+  }
+  .popup-sub {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--mute); font-weight: 500;
+  }
+  .popup-sub .line-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 600;
+    color: #fff; letter-spacing: 0.01em;
+  }
+  .popup-travel {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 10px; padding: 8px 10px;
+    background: #fff; border: 1px solid var(--hair-2);
+    border-radius: 10px; font-size: 12px;
+  }
+  .popup-travel .t-lbl { color: var(--mute); }
+  .popup-travel .t-val { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .set-origin-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; margin-top: 10px;
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 10px; padding: 9px 12px;
+    font-size: 12.5px; font-weight: 600; cursor: pointer;
+    font-family: inherit;
+    transition: background .15s, transform .1s;
+  }
+  .set-origin-btn:hover { background: var(--accent-dark); }
+  .set-origin-btn:active { transform: scale(0.99); }
+  .origin-badge {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    margin-top: 10px; background: var(--accent-soft); color: var(--accent-dark);
+    border-radius: 10px; padding: 8px 12px;
+    font-size: 12px; font-weight: 600;
+  }
+
+  .section-label {
+    padding: 10px 16px 4px; font-size: 10px; color: var(--mute);
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .popup-list { padding: 0 6px 10px; }
+  .popup-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 10px; border-radius: 8px; gap: 10px;
+  }
+  .popup-item:hover { background: var(--hair-2); }
+  .popup-item .l {
+    display: flex; align-items: center; gap: 9px; min-width: 0;
+  }
+  .popup-item .l-icon {
+    width: 26px; height: 26px; flex-shrink: 0; border-radius: 8px;
+    display: grid; place-items: center;
+    background: var(--accent-soft); color: var(--accent-dark);
+  }
+  .popup-item .l-text { min-width: 0; }
+  .popup-item .name {
+    font-size: 12.5px; font-weight: 500; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: block; max-width: 160px;
+  }
+  .popup-item .type {
+    font-size: 10.5px; color: var(--mute); margin-top: 1px;
+  }
+  .popup-item .meta {
+    font-size: 10.5px; color: var(--mute); white-space: nowrap;
+    font-variant-numeric: tabular-nums; text-align: right; flex-shrink: 0;
+  }
+  .popup-item .meta b { color: var(--ink-2); font-weight: 600; display: block; font-size: 11.5px; }
+
+  /* Leaflet overrides */
+  .leaflet-container { font-family: 'Inter', sans-serif !important; background: #eef2f6 !important; }
+  .leaflet-control-attribution { background: rgba(255,255,255,.8) !important; font-size: 10px !important; }
+  .leaflet-control-zoom { border: none !important; box-shadow: var(--shadow-sm) !important; border-radius: 10px !important; overflow: hidden; }
+  .leaflet-control-zoom a {
+    background: #fff !important; color: var(--ink) !important;
+    border-bottom: 1px solid var(--hair-2) !important; font-weight: 500 !important;
+  }
+  .leaflet-control-zoom a:hover { background: var(--hair-2) !important; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .toolbar { grid-template-columns: 1fr; row-gap: 12px; }
+    .brand { border-right: none; padding-right: 0; border-bottom: 1px solid var(--hair); padding-bottom: 12px; }
+    .ctl-group { border-left: none; padding-left: 0; border-top: 1px solid var(--hair); padding-top: 12px; justify-content: flex-end; }
+    .search-wrap { width: 100%; }
+    .stats { width: 200px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div id="krl-map"></div>
+  <div class="vignette"></div>
+
+  <!-- Top toolbar -->
+  <div class="toolbar-wrap">
+    <div class="toolbar">
+      <div class="brand">
+        <div class="brand-mark">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <rect x="5" y="3" width="14" height="16" rx="3" stroke="currentColor" stroke-width="2"/>
+            <circle cx="9" cy="15" r="1.2" fill="currentColor"/>
+            <circle cx="15" cy="15" r="1.2" fill="currentColor"/>
+            <rect x="8" y="6" width="8" height="5" rx="1" fill="currentColor"/>
+            <path d="M8 21l-2 2M16 21l2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-name">Transun Reach</div>
+          <div class="brand-sub">Jabodetabek · commuter map</div>
+        </div>
+      </div>
+
+      <div class="center-col">
+        <div class="mode-toggle">
+          <button id="mode-krl" class="mode-btn active" data-mode="krl">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="2"/><path d="M9 19l-2 2M15 19l2 2M9 8h6"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></svg>
+            Transun
+          </button>
+          <button id="mode-car" class="mode-btn" data-mode="car">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l2-5a2 2 0 012-1.5h10a2 2 0 012 1.5l2 5v5h-3v-2H6v2H3v-5z"/><circle cx="7.5" cy="15.5" r="1.2"/><circle cx="16.5" cy="15.5" r="1.2"/></svg>
+            Mobil
+          </button>
+        </div>
+        <div class="question">
+          How far can you go by <span id="mode-label">Transun</span> from
+          <span class="origin-pill"><span id="origin-name">Rawa Buntu</span></span>
+          ?
+        </div>
+        <div class="scrubber">
+          <div id="time-chip" class="time-chip">30 min</div>
+          <input id="time-slider" type="range" min="0" max="180" step="5" value="30" />
+          <div class="ticks" id="ticks">
+            <span>0</span><span>30m</span><span>1h</span><span>1h30</span><span>2h</span><span>2h30</span><span>3h</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ctl-group">
+        <div class="search-wrap">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.6"/>
+            <line x1="9.2" y1="9.2" x2="13" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <input id="search-input" type="text" placeholder="Find station…" autocomplete="off" />
+          <div id="search-results"></div>
+        </div>
+        <button id="play" type="button" class="ctl-btn" title="Play / pause">
+          <svg id="play-icon" width="14" height="14" viewBox="0 0 14 14"><polygon points="3,2 12,7 3,12" fill="currentColor"/></svg>
+        </button>
+        <button id="reset" type="button" class="ctl-btn ghost" title="Reset to 30 min">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M 3 7 A 4 4 0 1 1 5 10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <polygon points="1.5,5 5.5,5 3.5,8.5" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom-left stats -->
+  <div class="stats">
+    <div class="stats-title">Numbers</div>
+
+    <!-- Stat 1: Farthest point -->
+    <div class="stat-block stat-theme-green" id="stat-distance">
+      <div class="stat-label">Farthest point from origin</div>
+      <div class="stat-numbers">
+        <span class="stat-main"><span id="stat-dist-val">0</span><small> km</small></span>
+        <span class="stat-sub"><span id="stat-dist-pct">0</span>% of JKT–BDG</span>
+      </div>
+      <div class="bar-stack">
+        <div class="bar-track-orange" id="bar-dist-orange-track">
+          <div class="bar-fill orange" id="bar-dist-orange" style="width:0%"></div>
+        </div>
+        <div class="bar-track-green">
+          <div class="bar-fill green" id="bar-dist-green" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stat 2: Landmarks covered -->
+    <div class="stat-block stat-theme-green" id="stat-landmarks">
+      <div class="stat-label">Landmarks reachable</div>
+      <div class="stat-numbers">
+        <span class="stat-main"><span id="stat-lm-val">0</span><small>%</small></span>
+        <span class="stat-sub"><span id="stat-lm-count">0</span> / <span id="stat-lm-total">0</span></span>
+      </div>
+      <div class="bar-stack">
+        <div class="bar-track-orange" id="bar-lm-orange-track">
+          <div class="bar-fill orange" id="bar-lm-orange" style="width:0%"></div>
+        </div>
+        <div class="bar-track-green">
+          <div class="bar-fill green" id="bar-lm-green" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Radius slider (vertical) -->
+  <div class="radius-ctl">
+    <div class="radius-title">Walk radius</div>
+    <div class="radius-val"><span id="radius-val">4.0</span><small>km</small></div>
+    <div class="radius-track">
+      <input id="radius-slider" type="range" min="1" max="10" step="0.5" value="4" orient="vertical" />
+    </div>
+  </div>
+
+  <!-- Bottom-right legend -->
+  <div class="legend">
+    <div class="legend-title">Legend</div>
+    <div class="legend-row"><div class="legend-swatch"><div class="dot-origin"></div></div>Origin</div>
+    <div class="legend-row"><div class="legend-swatch"><div class="dot-terminus"></div></div>Furthest reachable</div>
+    <div class="legend-row"><div class="legend-swatch"><div class="dot-interchange"></div></div>Interchange</div>
+    <div class="legend-row"><div class="legend-swatch"><div class="blob-swatch"></div></div>Reachable area</div>
+  </div>
+</div>
+
+<!-- Third-party libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+
+<!-- Data inlined -->
+<script>
+// KRL network stations
+window.KRL_STATIONS = {
+  'Bogor':{lat:-6.5949,lng:106.7891,lines:['B']},
+  'Cilebut':{lat:-6.5386,lng:106.8010,lines:['B']},
+  'Bojong Gede':{lat:-6.4947,lng:106.8047,lines:['B']},
+  'Citayam':{lat:-6.4648,lng:106.8187,lines:['B']},
+  'Depok':{lat:-6.4064,lng:106.8227,lines:['B']},
+  'Depok Baru':{lat:-6.3928,lng:106.8220,lines:['B']},
+  'Pondok Cina':{lat:-6.3693,lng:106.8319,lines:['B']},
+  'Universitas Indonesia':{lat:-6.3613,lng:106.8315,lines:['B']},
+  'Universitas Pancasila':{lat:-6.3370,lng:106.8339,lines:['B']},
+  'Lenteng Agung':{lat:-6.3282,lng:106.8352,lines:['B']},
+  'Tanjung Barat':{lat:-6.3059,lng:106.8426,lines:['B']},
+  'Pasar Minggu':{lat:-6.2849,lng:106.8443,lines:['B']},
+  'Pasar Minggu Baru':{lat:-6.2700,lng:106.8456,lines:['B']},
+  'Duren Kalibata':{lat:-6.2601,lng:106.8487,lines:['B']},
+  'Cawang':{lat:-6.2483,lng:106.8548,lines:['B']},
+  'Tebet':{lat:-6.2265,lng:106.8573,lines:['B']},
+  'Manggarai':{lat:-6.2104,lng:106.8506,lines:['B','C','R']},
+  'Cikini':{lat:-6.1975,lng:106.8404,lines:['B']},
+  'Gondangdia':{lat:-6.1854,lng:106.8330,lines:['B']},
+  'Juanda':{lat:-6.1669,lng:106.8307,lines:['B']},
+  'Sawah Besar':{lat:-6.1584,lng:106.8294,lines:['B']},
+  'Mangga Besar':{lat:-6.1500,lng:106.8281,lines:['B']},
+  'Jayakarta':{lat:-6.1414,lng:106.8250,lines:['B']},
+  'Jakarta Kota':{lat:-6.1373,lng:106.8139,lines:['B','P']},
+  'Matraman':{lat:-6.2034,lng:106.8614,lines:['C']},
+  'Jatinegara':{lat:-6.2158,lng:106.8705,lines:['C','R']},
+  'Klender':{lat:-6.2189,lng:106.8930,lines:['C']},
+  'Buaran':{lat:-6.2195,lng:106.9113,lines:['C']},
+  'Klender Baru':{lat:-6.2207,lng:106.9220,lines:['C']},
+  'Cakung':{lat:-6.2197,lng:106.9408,lines:['C']},
+  'Rawa Bebek':{lat:-6.2225,lng:106.9576,lines:['C']},
+  'Kranji':{lat:-6.2267,lng:106.9864,lines:['C']},
+  'Bekasi':{lat:-6.2360,lng:107.0010,lines:['C']},
+  'Bekasi Timur':{lat:-6.2404,lng:107.0187,lines:['C']},
+  'Tambun':{lat:-6.2627,lng:107.0476,lines:['C']},
+  'Cibitung':{lat:-6.2713,lng:107.0815,lines:['C']},
+  'Metland Telagamurni':{lat:-6.2766,lng:107.1085,lines:['C']},
+  'Cikarang':{lat:-6.2569,lng:107.1489,lines:['C']},
+  'Pondok Jati':{lat:-6.2043,lng:106.8653,lines:['C']},
+  'Kramat':{lat:-6.1881,lng:106.8548,lines:['C']},
+  'Gang Sentiong':{lat:-6.1795,lng:106.8510,lines:['C']},
+  'Pasar Senen':{lat:-6.1736,lng:106.8422,lines:['C']},
+  'Kemayoran':{lat:-6.1623,lng:106.8423,lines:['C']},
+  'Rajawali':{lat:-6.1433,lng:106.8336,lines:['C']},
+  'Kampung Bandan':{lat:-6.1280,lng:106.8214,lines:['C','P']},
+  'Angke':{lat:-6.1470,lng:106.8016,lines:['C']},
+  'Duri':{lat:-6.1617,lng:106.8005,lines:['C','T']},
+  'Karet':{lat:-6.1988,lng:106.8178,lines:['C']},
+  'Sudirman':{lat:-6.2037,lng:106.8228,lines:['C','R']},
+  'Tanah Abang':{lat:-6.1859,lng:106.8121,lines:['C','R']},
+  'Palmerah':{lat:-6.2090,lng:106.7988,lines:['R']},
+  'Kebayoran':{lat:-6.2411,lng:106.7827,lines:['R']},
+  'Pondok Ranji':{lat:-6.2790,lng:106.7413,lines:['R']},
+  'Jurangmangu':{lat:-6.2832,lng:106.7200,lines:['R']},
+  'Sudimara':{lat:-6.2830,lng:106.7068,lines:['R']},
+  'Rawa Buntu':{lat:-6.3226,lng:106.6641,lines:['R']},
+  'Serpong':{lat:-6.3350,lng:106.6645,lines:['R']},
+  'Cisauk':{lat:-6.3275,lng:106.6377,lines:['R']},
+  'Cicayur':{lat:-6.3480,lng:106.6219,lines:['R']},
+  'Parung Panjang':{lat:-6.3444,lng:106.5649,lines:['R']},
+  'Cilejit':{lat:-6.3411,lng:106.5095,lines:['R']},
+  'Daru':{lat:-6.3381,lng:106.4762,lines:['R']},
+  'Tenjo':{lat:-6.3499,lng:106.4456,lines:['R']},
+  'Tigaraksa':{lat:-6.3562,lng:106.4350,lines:['R']},
+  'Cikoya':{lat:-6.3647,lng:106.4215,lines:['R']},
+  'Maja':{lat:-6.3647,lng:106.3870,lines:['R']},
+  'Citeras':{lat:-6.3716,lng:106.3293,lines:['R']},
+  'Rangkasbitung':{lat:-6.3537,lng:106.2505,lines:['R']},
+  'Grogol':{lat:-6.1659,lng:106.7905,lines:['T']},
+  'Pesing':{lat:-6.1663,lng:106.7675,lines:['T']},
+  'Bojong Indah':{lat:-6.1638,lng:106.7471,lines:['T']},
+  'Rawa Buaya':{lat:-6.1642,lng:106.7313,lines:['T']},
+  'Kalideres':{lat:-6.1592,lng:106.7022,lines:['T']},
+  'Poris':{lat:-6.1634,lng:106.6678,lines:['T']},
+  'Batu Ceper':{lat:-6.1672,lng:106.6520,lines:['T']},
+  'Tangerang':{lat:-6.1782,lng:106.6278,lines:['T']},
+  'Ancol':{lat:-6.1241,lng:106.8348,lines:['P']},
+  'Tanjung Priok':{lat:-6.1059,lng:106.8804,lines:['P']}
+};
+
+// KRL network edges
+window.KRL_EDGES = [
+  ['Bogor','Cilebut','B',6],
+  ['Cilebut','Bojong Gede','B',5],
+  ['Bojong Gede','Citayam','B',5],
+  ['Citayam','Depok','B',5],
+  ['Depok','Depok Baru','B',3],
+  ['Depok Baru','Pondok Cina','B',3],
+  ['Pondok Cina','Universitas Indonesia','B',3],
+  ['Universitas Indonesia','Universitas Pancasila','B',3],
+  ['Universitas Pancasila','Lenteng Agung','B',3],
+  ['Lenteng Agung','Tanjung Barat','B',3],
+  ['Tanjung Barat','Pasar Minggu','B',3],
+  ['Pasar Minggu','Pasar Minggu Baru','B',3],
+  ['Pasar Minggu Baru','Duren Kalibata','B',3],
+  ['Duren Kalibata','Cawang','B',3],
+  ['Cawang','Tebet','B',3],
+  ['Tebet','Manggarai','B',4],
+  ['Manggarai','Cikini','B',3],
+  ['Cikini','Gondangdia','B',3],
+  ['Gondangdia','Juanda','B',3],
+  ['Juanda','Sawah Besar','B',2],
+  ['Sawah Besar','Mangga Besar','B',2],
+  ['Mangga Besar','Jayakarta','B',2],
+  ['Jayakarta','Jakarta Kota','B',3],
+  ['Manggarai','Matraman','C',3],
+  ['Matraman','Jatinegara','C',3],
+  ['Jatinegara','Klender','C',4],
+  ['Klender','Buaran','C',3],
+  ['Buaran','Klender Baru','C',3],
+  ['Klender Baru','Cakung','C',3],
+  ['Cakung','Rawa Bebek','C',3],
+  ['Rawa Bebek','Kranji','C',3],
+  ['Kranji','Bekasi','C',4],
+  ['Bekasi','Bekasi Timur','C',3],
+  ['Bekasi Timur','Tambun','C',5],
+  ['Tambun','Cibitung','C',4],
+  ['Cibitung','Metland Telagamurni','C',4],
+  ['Metland Telagamurni','Cikarang','C',5],
+  ['Jatinegara','Pondok Jati','C',3],
+  ['Pondok Jati','Kramat','C',4],
+  ['Kramat','Gang Sentiong','C',3],
+  ['Gang Sentiong','Pasar Senen','C',3],
+  ['Pasar Senen','Kemayoran','C',4],
+  ['Kemayoran','Rajawali','C',3],
+  ['Rajawali','Kampung Bandan','C',3],
+  ['Kampung Bandan','Angke','C',4],
+  ['Angke','Duri','C',4],
+  ['Duri','Tanah Abang','C',4],
+  ['Tanah Abang','Karet','C',3],
+  ['Karet','Sudirman','C',3],
+  ['Sudirman','Manggarai','C',4],
+  ['Tanah Abang','Palmerah','R',4],
+  ['Palmerah','Kebayoran','R',4],
+  ['Kebayoran','Pondok Ranji','R',4],
+  ['Pondok Ranji','Jurangmangu','R',3],
+  ['Jurangmangu','Sudimara','R',3],
+  ['Sudimara','Rawa Buntu','R',3],
+  ['Rawa Buntu','Serpong','R',3],
+  ['Serpong','Cisauk','R',4],
+  ['Cisauk','Cicayur','R',4],
+  ['Cicayur','Parung Panjang','R',5],
+  ['Parung Panjang','Cilejit','R',5],
+  ['Cilejit','Daru','R',4],
+  ['Daru','Tenjo','R',4],
+  ['Tenjo','Tigaraksa','R',4],
+  ['Tigaraksa','Cikoya','R',4],
+  ['Cikoya','Maja','R',4],
+  ['Maja','Citeras','R',5],
+  ['Citeras','Rangkasbitung','R',5],
+  ['Duri','Grogol','T',4],
+  ['Grogol','Pesing','T',3],
+  ['Pesing','Bojong Indah','T',3],
+  ['Bojong Indah','Rawa Buaya','T',3],
+  ['Rawa Buaya','Kalideres','T',3],
+  ['Kalideres','Poris','T',4],
+  ['Poris','Batu Ceper','T',3],
+  ['Batu Ceper','Tangerang','T',5],
+  ['Jakarta Kota','Kampung Bandan','P',4],
+  ['Kampung Bandan','Ancol','P',4],
+  ['Ancol','Tanjung Priok','P',5]
+];
+
+// KRL line metadata
+window.KRL_LINES = {
+  names: {
+    B: 'Bogor',
+    C: 'Cikarang',
+    R: 'Rangkasbitung',
+    T: 'Tangerang',
+    P: 'Tanjung Priok'
+  },
+  colors: {
+    B: '#d62828',
+    C: '#1d4ed8',
+    R: '#16a34a',
+    T: '#b45309',
+    P: '#db2777'
+  },
+  // Minutes added when switching lines at an interchange
+  transferPenalty: 6
+};
+
+// KRL station landmarks
+window.KRL_LANDMARKS = {
+  "Bogor": [
+    {"name": "Kafe Bogor Baru","type": "Cafe","walk_min": 4,"meters": 320,"lat": -6.597523651997935,"lng": 106.78787705107442},
+    {"name": "Taman Bogor Indah","type": "Park","walk_min": 9,"meters": 720,"lat": -6.597652715292684,"lng": 106.7950009004773},
+    {"name": "Alun-alun Bogor Utara","type": "Square","walk_min": 10,"meters": 800,"lat": -6.588340870005163,"lng": 106.79215737231398}
+  ],
+  "Cilebut": [
+    {"name": "Warung Cilebut Utara","type": "Eatery","walk_min": 7,"meters": 560,"lat": -6.534607906440928,"lng": 106.80411738874072},
+    {"name": "Kafe Cilebut Sentosa","type": "Cafe","walk_min": 7,"meters": 560,"lat": -6.534046673910552,"lng": 106.80321968294595},
+    {"name": "Taman Cilebut Timur","type": "Park","walk_min": 13,"meters": 1040,"lat": -6.529471109504912,"lng": 106.80327493751683}
+  ],
+  "Bojong Gede": [
+    {"name": "Taman Bojong Baru","type": "Park","walk_min": 4,"meters": 320,"lat": -6.493252560159219,"lng": 106.80219444721779},
+    {"name": "Alun-alun Bojong Indah","type": "Square","walk_min": 10,"meters": 800,"lat": -6.491081400398046,"lng": 106.81096388195552},
+    {"name": "Sekolah Bojong Utara","type": "School","walk_min": 11,"meters": 880,"lat": -6.502660919124299,"lng": 106.8047}
+  ],
+  "Citayam": [
+    {"name": "Alun-alun Citayam Timur","type": "Square","walk_min": 7,"meters": 560,"lat": -6.464094943581169,"lng": 106.81368653476828},
+    {"name": "Sekolah Citayam Jaya","type": "School","walk_min": 6,"meters": 480,"lat": -6.4651029048977495,"lng": 106.81437108326645},
+    {"name": "Pasar Citayam Raya","type": "Market","walk_min": 12,"meters": 960,"lat": -6.467193810942503,"lng": 106.81035723375899}
+  ],
+  "Depok": [
+    {"name": "Kafe Depok Jaya","type": "Cafe","walk_min": 8,"meters": 640,"lat": -6.40750473816755,"lng": 106.81702097442884},
+    {"name": "Taman Depok Raya","type": "Park","walk_min": 12,"meters": 960,"lat": -6.412322909586213,"lng": 106.8290466707775},
+    {"name": "Alun-alun Depok Baru","type": "Square","walk_min": 13,"meters": 1040,"lat": -6.397061769515949,"lng": 106.8238457110041}
+  ],
+  "Depok Baru": [
+    {"name": "Taman Depok Raya","type": "Park","walk_min": 7,"meters": 560,"lat": -6.3978590966117475,"lng": 106.82173507441489},
+    {"name": "Alun-alun Depok Baru","type": "Square","walk_min": 11,"meters": 880,"lat": -6.386613203853066,"lng": 106.81699400758184},
+    {"name": "Sekolah Depok Indah","type": "School","walk_min": 11,"meters": 880,"lat": -6.394045362124438,"lng": 106.82985666635761}
+  ],
+  "Pondok Cina": [
+    {"name": "Kafe Pondok Raya","type": "Cafe","walk_min": 4,"meters": 320,"lat": -6.372020297074828,"lng": 106.83288927595636},
+    {"name": "Taman Pondok Baru","type": "Park","walk_min": 11,"meters": 880,"lat": -6.376780816955777,"lng": 106.83462050887998},
+    {"name": "Alun-alun Pondok Indah","type": "Square","walk_min": 13,"meters": 1040,"lat": -6.378140965493191,"lng": 106.83511514685816}
+  ],
+  "Universitas Indonesia": [
+    {"name": "Minimart Universitas Raya","type": "Shop","walk_min": 6,"meters": 480,"lat": -6.361072740555485,"lng": 106.83583266060323},
+    {"name": "Warung Universitas Baru","type": "Eatery","walk_min": 11,"meters": 880,"lat": -6.353437093000509,"lng": 106.8327442972462},
+    {"name": "Kafe Universitas Indah","type": "Cafe","walk_min": 13,"meters": 1040,"lat": -6.357928345689098,"lng": 106.82272405074326}
+  ],
+  "Universitas Pancasila": [
+    {"name": "Kafe Universitas Baru","type": "Cafe","walk_min": 5,"meters": 400,"lat": -6.333835101475884,"lng": 106.8321472509028},
+    {"name": "Taman Universitas Indah","type": "Park","walk_min": 11,"meters": 880,"lat": -6.33602980801342,"lng": 106.82600554936032},
+    {"name": "Alun-alun Universitas Utara","type": "Square","walk_min": 14,"meters": 1120,"lat": -6.344410133397987,"lng": 106.82699617324427}
+  ],
+  "Lenteng Agung": [
+    {"name": "Sekolah Lenteng Jaya","type": "School","walk_min": 6,"meters": 480,"lat": -6.329896679407226,"lng": 106.83120654817893},
+    {"name": "Pasar Lenteng Raya","type": "Market","walk_min": 8,"meters": 640,"lat": -6.3244015760941386,"lng": 106.83956557009807},
+    {"name": "Klinik Lenteng Baru","type": "Clinic","walk_min": 12,"meters": 960,"lat": -6.3356441886075086,"lng": 106.8307311919748}
+  ],
+  "Tanjung Barat": [
+    {"name": "Minimart Tanjung Timur","type": "Shop","walk_min": 5,"meters": 400,"lat": -6.303622741483446,"lng": 106.84540947390656},
+    {"name": "Warung Tanjung Jaya","type": "Eatery","walk_min": 9,"meters": 720,"lat": -6.308857057714968,"lng": 106.84839796777949},
+    {"name": "Kafe Tanjung Raya","type": "Cafe","walk_min": 11,"meters": 880,"lat": -6.313850008961317,"lng": 106.84218375861987}
+  ],
+  "Pasar Minggu": [
+    {"name": "Minimart Pasar Utara","type": "Shop","walk_min": 8,"meters": 640,"lat": -6.279610791632972,"lng": 106.84665254603534},
+    {"name": "Warung Pasar Sentosa","type": "Eatery","walk_min": 6,"meters": 480,"lat": -6.28355814947259,"lng": 106.84017434964083},
+    {"name": "Kafe Pasar Timur","type": "Cafe","walk_min": 10,"meters": 800,"lat": -6.2919790490373355,"lng": 106.84279681042925}
+  ],
+  "Pasar Minggu Baru": [
+    {"name": "Masjid Pasar Sentosa","type": "Mosque","walk_min": 7,"meters": 560,"lat": -6.267621638545683,"lng": 106.84113156559674},
+    {"name": "Minimart Pasar Timur","type": "Shop","walk_min": 7,"meters": 560,"lat": -6.266480833296028,"lng": 106.84924044563627},
+    {"name": "Warung Pasar Jaya","type": "Eatery","walk_min": 11,"meters": 880,"lat": -6.277155226711988,"lng": 106.84908623827492}
+  ],
+  "Duren Kalibata": [
+    {"name": "Alun-alun Duren Jaya","type": "Square","walk_min": 7,"meters": 560,"lat": -6.256054081005732,"lng": 106.8456543832901},
+    {"name": "Sekolah Duren Raya","type": "School","walk_min": 12,"meters": 960,"lat": -6.266654380287805,"lng": 106.84300834792037},
+    {"name": "Pasar Duren Baru","type": "Market","walk_min": 9,"meters": 720,"lat": -6.263257797417925,"lng": 106.85439083442385}
+  ],
+  "Cawang": [
+    {"name": "Warung Cawang Timur","type": "Eatery","walk_min": 7,"meters": 560,"lat": -6.24327172204705,"lng": 106.85418326742082},
+    {"name": "Kafe Cawang Jaya","type": "Cafe","walk_min": 11,"meters": 880,"lat": -6.24570817825292,"lng": 106.8623191219764},
+    {"name": "Taman Cawang Raya","type": "Park","walk_min": 11,"meters": 880,"lat": -6.255123839556884,"lng": 106.85889577792301}
+  ],
+  "Tebet": [
+    {"name": "Klinik Tebet Sentosa","type": "Clinic","walk_min": 4,"meters": 320,"lat": -6.22428239350644,"lng": 106.85544128070393},
+    {"name": "Masjid Tebet Timur","type": "Mosque","walk_min": 9,"meters": 720,"lat": -6.232620668418363,"lng": 106.85507474126983},
+    {"name": "Minimart Tebet Jaya","type": "Shop","walk_min": 10,"meters": 800,"lat": -6.225243273546829,"lng": 106.86441930794035}
+  ],
+  "Manggarai": [
+    {"name": "Masjid Manggarai Jaya","type": "Mosque","walk_min": 7,"meters": 560,"lat": -6.215244677612985,"lng": 106.8520794708148},
+    {"name": "Minimart Manggarai Raya","type": "Shop","walk_min": 12,"meters": 960,"lat": -6.219083316332098,"lng": 106.8504486056782},
+    {"name": "Warung Manggarai Baru","type": "Eatery","walk_min": 12,"meters": 960,"lat": -6.218611487539129,"lng": 106.84777579520492}
+  ],
+  "Cikini": [
+    {"name": "Alun-alun Cikini Raya","type": "Square","walk_min": 8,"meters": 640,"lat": -6.191711122445268,"lng": 106.8402990729223},
+    {"name": "Sekolah Cikini Baru","type": "School","walk_min": 11,"meters": 880,"lat": -6.200610578913249,"lng": 106.8477194957181},
+    {"name": "Pasar Cikini Indah","type": "Market","walk_min": 11,"meters": 880,"lat": -6.202929333787361,"lng": 106.83458456049706}
+  ],
+  "Gondangdia": [
+    {"name": "Sekolah Gondangdia Indah","type": "School","walk_min": 7,"meters": 560,"lat": -6.181103754895534,"lng": 106.83031860872903},
+    {"name": "Pasar Gondangdia Utara","type": "Market","walk_min": 10,"meters": 800,"lat": -6.1871508369502415,"lng": 106.82598614857477},
+    {"name": "Klinik Gondangdia Sentosa","type": "Clinic","walk_min": 14,"meters": 1120,"lat": -6.195507397650543,"lng": 106.83229406453995}
+  ],
+  "Juanda": [
+    {"name": "Taman Juanda Indah","type": "Park","walk_min": 5,"meters": 400,"lat": -6.165603209880422,"lng": 106.82732589175626},
+    {"name": "Alun-alun Juanda Utara","type": "Square","walk_min": 7,"meters": 560,"lat": -6.161840903388253,"lng": 106.83043518933458},
+    {"name": "Sekolah Juanda Sentosa","type": "School","walk_min": 14,"meters": 1120,"lat": -6.162300132443384,"lng": 106.83971667027802}
+  ],
+  "Sawah Besar": [
+    {"name": "Minimart Sawah Sentosa","type": "Shop","walk_min": 6,"meters": 480,"lat": -6.158172740555486,"lng": 106.83373097791241},
+    {"name": "Warung Sawah Timur","type": "Eatery","walk_min": 9,"meters": 720,"lat": -6.151966712454962,"lng": 106.83041766599513},
+    {"name": "Kafe Sawah Jaya","type": "Cafe","walk_min": 9,"meters": 720,"lat": -6.15606577778476,"lng": 106.82332670244688}
+  ],
+  "Mangga Besar": [
+    {"name": "Masjid Mangga Indah","type": "Mosque","walk_min": 7,"meters": 560,"lat": -6.154473047331292,"lng": 106.82572463267684},
+    {"name": "Minimart Mangga Utara","type": "Shop","walk_min": 10,"meters": 800,"lat": -6.155206005430351,"lng": 106.83312105201055},
+    {"name": "Warung Mangga Sentosa","type": "Eatery","walk_min": 13,"meters": 1040,"lat": -6.145875646891075,"lng": 106.83654553149967}
+  ],
+  "Jayakarta": [
+    {"name": "Kafe Jayakarta Baru","type": "Cafe","walk_min": 6,"meters": 480,"lat": -6.1448217944792045,"lng": 106.82766999013559},
+    {"name": "Taman Jayakarta Indah","type": "Park","walk_min": 8,"meters": 640,"lat": -6.136600071951916,"lng": 106.82823346426784},
+    {"name": "Alun-alun Jayakarta Utara","type": "Square","walk_min": 12,"meters": 960,"lat": -6.139006189057497,"lng": 106.81666243350043}
+  ],
+  "Jakarta Kota": [
+    {"name": "Alun-alun Jakarta Sentosa","type": "Square","walk_min": 5,"meters": 400,"lat": -6.140721453141303,"lng": 106.81507658960446},
+    {"name": "Sekolah Jakarta Timur","type": "School","walk_min": 8,"meters": 640,"lat": -6.14294136820574,"lng": 106.81520074182467},
+    {"name": "Pasar Jakarta Jaya","type": "Market","walk_min": 11,"meters": 880,"lat": -6.14520157964035,"lng": 106.81486894748855}
+  ],
+  "Matraman": [
+    {"name": "Taman Matraman Raya","type": "Park","walk_min": 7,"meters": 560,"lat": -6.198340903388253,"lng": 106.86166482894811},
+    {"name": "Alun-alun Matraman Baru","type": "Square","walk_min": 8,"meters": 640,"lat": -6.207899488106862,"lng": 106.86503939373117},
+    {"name": "Sekolah Matraman Indah","type": "School","walk_min": 11,"meters": 880,"lat": -6.202154637875562,"lng": 106.85354619952165}
+  ],
+  "Jatinegara": [
+    {"name": "Masjid Jatinegara Raya","type": "Mosque","walk_min": 5,"meters": 400,"lat": -6.213196997284824,"lng": 106.86798916163501},
+    {"name": "Minimart Jatinegara Baru","type": "Shop","walk_min": 7,"meters": 560,"lat": -6.220816737095126,"lng": 106.87120425643249},
+    {"name": "Warung Jatinegara Indah","type": "Eatery","walk_min": 11,"meters": 880,"lat": -6.208770925622256,"lng": 106.87423318450442}
+  ],
+  "Klender": [
+    {"name": "Minimart Klender Timur","type": "Shop","walk_min": 7,"meters": 560,"lat": -6.21614083716656,"lng": 106.88875605760353},
+    {"name": "Warung Klender Jaya","type": "Eatery","walk_min": 12,"meters": 960,"lat": -6.217541423136976,"lng": 106.90156803459467},
+    {"name": "Kafe Klender Raya","type": "Cafe","walk_min": 10,"meters": 800,"lat": -6.224524360133576,"lng": 106.8884506238962}
+  ],
+  "Buaran": [
+    {"name": "Masjid Buaran Utara","type": "Mosque","walk_min": 5,"meters": 400,"lat": -6.215881951528292,"lng": 106.91136308205846},
+    {"name": "Minimart Buaran Sentosa","type": "Shop","walk_min": 12,"meters": 960,"lat": -6.224726546247747,"lng": 106.91822804015813},
+    {"name": "Warung Buaran Timur","type": "Eatery","walk_min": 13,"meters": 1040,"lat": -6.222250737949264,"lng": 106.90231288701148}
+  ],
+  "Klender Baru": [
+    {"name": "Sekolah Klender Raya","type": "School","walk_min": 5,"meters": 400,"lat": -6.2238017452531285,"lng": 106.92013838073078},
+    {"name": "Pasar Klender Baru","type": "Market","walk_min": 8,"meters": 640,"lat": -6.22602950159408,"lng": 106.9242596934349},
+    {"name": "Klinik Klender Indah","type": "Clinic","walk_min": 14,"meters": 1120,"lat": -6.222979221827982,"lng": 106.9318612846189}
+  ],
+  "Cakung": [
+    {"name": "Sekolah Cakung Jaya","type": "School","walk_min": 5,"meters": 400,"lat": -6.22156371657286,"lng": 106.94389824886002},
+    {"name": "Pasar Cakung Raya","type": "Market","walk_min": 7,"meters": 560,"lat": -6.221679459308431,"lng": 106.93614194275175},
+    {"name": "Klinik Cakung Baru","type": "Clinic","walk_min": 12,"meters": 960,"lat": -6.211237947691389,"lng": 106.94275141652402}
+  ],
+  "Rawa Bebek": [
+    {"name": "Sekolah Rawa Utara","type": "School","walk_min": 7,"meters": 560,"lat": -6.219815408105929,"lng": 106.96189142509118},
+    {"name": "Pasar Rawa Sentosa","type": "Market","walk_min": 11,"meters": 880,"lat": -6.230224445803536,"lng": 106.95952375992984},
+    {"name": "Klinik Rawa Timur","type": "Clinic","walk_min": 13,"meters": 1040,"lat": -6.2218437060548775,"lng": 106.94822508897252}
+  ],
+  "Kranji": [
+    {"name": "Taman Kranji Timur","type": "Park","walk_min": 8,"meters": 640,"lat": -6.223056386373513,"lng": 106.98190552399335},
+    {"name": "Alun-alun Kranji Jaya","type": "Square","walk_min": 7,"meters": 560,"lat": -6.2294591628334395,"lng": 106.99064400539352},
+    {"name": "Sekolah Kranji Raya","type": "School","walk_min": 13,"meters": 1040,"lat": -6.222428694411714,"lng": 106.97802642872712}
+  ],
+  "Bekasi": [
+    {"name": "Taman Bekasi Indah","type": "Park","walk_min": 5,"meters": 400,"lat": -6.2372967901195775,"lng": 107.00437455043902},
+    {"name": "Alun-alun Bekasi Utara","type": "Square","walk_min": 10,"meters": 800,"lat": -6.243227280873925,"lng": 107.00137835052901},
+    {"name": "Sekolah Bekasi Sentosa","type": "School","walk_min": 9,"meters": 720,"lat": -6.238957057714967,"lng": 106.99520280945309}
+  ],
+  "Bekasi Timur": [
+    {"name": "Pasar Bekasi Timur","type": "Market","walk_min": 7,"meters": 560,"lat": -6.241965492281979,"lng": 107.0235128485218},
+    {"name": "Klinik Bekasi Jaya","type": "Clinic","walk_min": 8,"meters": 640,"lat": -6.245689208367028,"lng": 107.02105234552954},
+    {"name": "Masjid Bekasi Raya","type": "Mosque","walk_min": 10,"meters": 800,"lat": -6.247011510458785,"lng": 107.01575956808806}
+  ],
+  "Tambun": [
+    {"name": "Sekolah Tambun Timur","type": "School","walk_min": 5,"meters": 400,"lat": -6.260836283427139,"lng": 107.04450149683906},
+    {"name": "Pasar Tambun Jaya","type": "Market","walk_min": 7,"meters": 560,"lat": -6.260720540691568,"lng": 107.05225843957656},
+    {"name": "Klinik Tambun Raya","type": "Clinic","walk_min": 13,"meters": 1040,"lat": -6.271867223334328,"lng": 107.04548579191464}
+  ],
+  "Cibitung": [
+    {"name": "Taman Cibitung Timur","type": "Park","walk_min": 5,"meters": 400,"lat": -6.274678253759715,"lng": 107.08020454399387},
+    {"name": "Alun-alun Cibitung Jaya","type": "Square","walk_min": 11,"meters": 880,"lat": -6.270883357685057,"lng": 107.08944183014066},
+    {"name": "Sekolah Cibitung Raya","type": "School","walk_min": 10,"meters": 800,"lat": -6.264851608292467,"lng": 107.07821776050085}
+  ],
+  "Metland Telagamurni": [
+    {"name": "Taman Metland Baru","type": "Park","walk_min": 5,"meters": 400,"lat": -6.279905755229392,"lng": 107.10997031782962},
+    {"name": "Alun-alun Metland Indah","type": "Square","walk_min": 10,"meters": 800,"lat": -6.281442631491651,"lng": 107.11387280869813},
+    {"name": "Sekolah Metland Utara","type": "School","walk_min": 12,"meters": 960,"lat": -6.279283701054822,"lng": 107.11675116916324}
+  ],
+  "Cikarang": [
+    {"name": "Minimart Cikarang Sentosa","type": "Shop","walk_min": 6,"meters": 480,"lat": -6.259805578894991,"lng": 107.15212356350378},
+    {"name": "Warung Cikarang Timur","type": "Eatery","walk_min": 12,"meters": 960,"lat": -6.2498739794228335,"lng": 107.14380068954962},
+    {"name": "Kafe Cikarang Jaya","type": "Cafe","walk_min": 10,"meters": 800,"lat": -6.263511510458785,"lng": 107.15184052463108}
+  ],
+  "Pondok Jati": [
+    {"name": "Alun-alun Pondok Baru","type": "Square","walk_min": 7,"meters": 560,"lat": -6.200254081005731,"lng": 106.86225470718196},
+    {"name": "Sekolah Pondok Indah","type": "School","walk_min": 11,"meters": 880,"lat": -6.210308181930487,"lng": 106.86008320710904},
+    {"name": "Pasar Pondok Utara","type": "Market","walk_min": 13,"meters": 1040,"lat": -6.208861262937002,"lng": 106.87351921998638}
+  ],
+  "Kramat": [
+    {"name": "Alun-alun Kramat Sentosa","type": "Square","walk_min": 7,"meters": 560,"lat": -6.188805056418832,"lng": 106.85981078163911},
+    {"name": "Sekolah Kramat Timur","type": "School","walk_min": 7,"meters": 560,"lat": -6.187746610952627,"lng": 106.85984769949134},
+    {"name": "Pasar Kramat Jaya","type": "Market","walk_min": 9,"meters": 720,"lat": -6.1863046417931224,"lng": 106.86105372541262}
+  ],
+  "Gang Sentiong": [
+    {"name": "Sekolah Gang Sentosa","type": "School","walk_min": 6,"meters": 480,"lat": -6.177873338476211,"lng": 106.84697871633335},
+    {"name": "Pasar Gang Timur","type": "Market","walk_min": 12,"meters": 960,"lat": -6.170836516299535,"lng": 106.85160508078765},
+    {"name": "Klinik Gang Jaya","type": "Clinic","walk_min": 12,"meters": 960,"lat": -6.1773989956597095,"lng": 106.859416527826}
+  ],
+  "Pasar Senen": [
+    {"name": "Kafe Pasar Raya","type": "Cafe","walk_min": 5,"meters": 400,"lat": -6.170121578809704,"lng": 106.84319620986652},
+    {"name": "Taman Pasar Baru","type": "Park","walk_min": 11,"meters": 880,"lat": -6.178501231213015,"lng": 106.83593432897825},
+    {"name": "Alun-alun Pasar Indah","type": "Square","walk_min": 13,"meters": 1040,"lat": -6.173271653007323,"lng": 106.85159120823631}
+  ],
+  "Kemayoran": [
+    {"name": "Sekolah Kemayoran Utara","type": "School","walk_min": 8,"meters": 640,"lat": -6.166098423905861,"lng": 106.83793581298465},
+    {"name": "Pasar Kemayoran Sentosa","type": "Market","walk_min": 8,"meters": 640,"lat": -6.160997587526867,"lng": 106.83666560327799},
+    {"name": "Klinik Kemayoran Timur","type": "Clinic","walk_min": 13,"meters": 1040,"lat": -6.153639559909621,"lng": 106.83862840417895}
+  ],
+  "Rajawali": [
+    {"name": "Sekolah Rajawali Baru","type": "School","walk_min": 4,"meters": 320,"lat": -6.143047694611188,"lng": 106.8364801970085},
+    {"name": "Pasar Rajawali Indah","type": "Market","walk_min": 9,"meters": 720,"lat": -6.13681130647163,"lng": 106.83303303467933},
+    {"name": "Klinik Rajawali Utara","type": "Clinic","walk_min": 9,"meters": 720,"lat": -6.143867687124827,"lng": 106.8271195567309}
+  ],
+  "Kampung Bandan": [
+    {"name": "Masjid Kampung Raya","type": "Mosque","walk_min": 7,"meters": 560,"lat": -6.129481166588065,"lng": 106.81656162120113},
+    {"name": "Minimart Kampung Baru","type": "Shop","walk_min": 6,"meters": 480,"lat": -6.128075783925184,"lng": 106.82573601335334},
+    {"name": "Warung Kampung Indah","type": "Eatery","walk_min": 9,"meters": 720,"lat": -6.1258794185705705,"lng": 106.81524939147808}
+  ],
+  "Angke": [
+    {"name": "Pasar Angke Baru","type": "Market","walk_min": 5,"meters": 400,"lat": -6.144072491426181,"lng": 106.80372426985808},
+    {"name": "Klinik Angke Indah","type": "Clinic","walk_min": 10,"meters": 800,"lat": -6.139920950962665,"lng": 106.80310279557449},
+    {"name": "Masjid Angke Utara","type": "Mosque","walk_min": 11,"meters": 880,"lat": -6.139213046058932,"lng": 106.79994692486805}
+  ],
+  "Duri": [
+    {"name": "Alun-alun Duri Indah","type": "Square","walk_min": 8,"meters": 640,"lat": -6.16586480434428,"lng": 106.79648306992203},
+    {"name": "Sekolah Duri Utara","type": "School","walk_min": 10,"meters": 800,"lat": -6.164411102539648,"lng": 106.79379808566412},
+    {"name": "Pasar Duri Sentosa","type": "Market","walk_min": 12,"meters": 960,"lat": -6.161396910468297,"lng": 106.79183138695922}
+  ],
+  "Karet": [
+    {"name": "Klinik Karet Sentosa","type": "Clinic","walk_min": 7,"meters": 560,"lat": -6.20346331389482,"lng": 106.81582285047377},
+    {"name": "Masjid Karet Timur","type": "Mosque","walk_min": 6,"meters": 480,"lat": -6.199628553625663,"lng": 106.82205756503097},
+    {"name": "Minimart Karet Jaya","type": "Shop","walk_min": 12,"meters": 960,"lat": -6.1901166836679025,"lng": 106.81764860901042}
+  ],
+  "Sudirman": [
+    {"name": "Sekolah Sudirman Sentosa","type": "School","walk_min": 6,"meters": 480,"lat": -6.199702873804441,"lng": 106.82110528465809},
+    {"name": "Pasar Sudirman Timur","type": "Market","walk_min": 8,"meters": 640,"lat": -6.199330413141465,"lng": 106.81900597312554},
+    {"name": "Klinik Sudirman Jaya","type": "Clinic","walk_min": 13,"meters": 1040,"lat": -6.198854336910562,"lng": 106.81474479779948}
+  ],
+  "Tanah Abang": [
+    {"name": "Minimart Tanah Sentosa","type": "Shop","walk_min": 7,"meters": 560,"lat": -6.181651261823327,"lng": 106.81485587591192},
+    {"name": "Warung Tanah Timur","type": "Eatery","walk_min": 8,"meters": 640,"lat": -6.180181522182188,"lng": 106.81119536105037},
+    {"name": "Kafe Tanah Jaya","type": "Cafe","walk_min": 13,"meters": 1040,"lat": -6.179979127856958,"lng": 106.80479704203337}
+  ],
+  "Palmerah": [
+    {"name": "Sekolah Palmerah Indah","type": "School","walk_min": 6,"meters": 480,"lat": -6.204973871447511,"lng": 106.80042479485503},
+    {"name": "Pasar Palmerah Utara","type": "Market","walk_min": 11,"meters": 880,"lat": -6.208444674354126,"lng": 106.79086758654094},
+    {"name": "Klinik Palmerah Sentosa","type": "Clinic","walk_min": 14,"meters": 1120,"lat": -6.2188311128408635,"lng": 106.80124835889829}
+  ],
+  "Kebayoran": [
+    {"name": "Minimart Kebayoran Baru","type": "Shop","walk_min": 7,"meters": 560,"lat": -6.246055334326135,"lng": 106.78375214442418},
+    {"name": "Warung Kebayoran Indah","type": "Eatery","walk_min": 7,"meters": 560,"lat": -6.2451985120033475,"lng": 106.77972549205683},
+    {"name": "Kafe Kebayoran Utara","type": "Cafe","walk_min": 10,"meters": 800,"lat": -6.241856493311147,"lng": 106.77551026709793}
+  ],
+  "Pondok Ranji": [
+    {"name": "Warung Pondok Timur","type": "Eatery","walk_min": 8,"meters": 640,"lat": -6.281806931038155,"lng": 106.74635870281318},
+    {"name": "Kafe Pondok Jaya","type": "Cafe","walk_min": 12,"meters": 960,"lat": -6.284226546247747,"lng": 106.73437117195895},
+    {"name": "Taman Pondok Raya","type": "Park","walk_min": 13,"meters": 1040,"lat": -6.269832776665671,"lng": 106.7391857258206}
+  ],
+  "Jurangmangu": [
+    {"name": "Klinik Jurangmangu Baru","type": "Clinic","walk_min": 7,"meters": 560,"lat": -6.287863313894819,"lng": 106.71802253194524},
+    {"name": "Masjid Jurangmangu Indah","type": "Mosque","walk_min": 11,"meters": 880,"lat": -6.284719014980381,"lng": 106.72780679340038},
+    {"name": "Minimart Jurangmangu Utara","type": "Shop","walk_min": 12,"meters": 960,"lat": -6.274516683667902,"lng": 106.71984858462058}
+  ],
+  "Sudimara": [
+    {"name": "Warung Sudimara Raya","type": "Eatery","walk_min": 4,"meters": 320,"lat": -6.283990107163599,"lng": 106.70951755952477},
+    {"name": "Kafe Sudimara Baru","type": "Cafe","walk_min": 12,"meters": 960,"lat": -6.291552699863323,"lng": 106.7083065541074},
+    {"name": "Taman Sudimara Indah","type": "Park","walk_min": 14,"meters": 1120,"lat": -6.289512774767948,"lng": 106.69904618812195}
+  ],
+  "Rawa Buntu": [
+    {"name": "Klinik Rawa Utara","type": "Clinic","walk_min": 4,"meters": 320,"lat": -6.322347694611189,"lng": 106.66121881842882},
+    {"name": "Masjid Rawa Sentosa","type": "Mosque","walk_min": 10,"meters": 800,"lat": -6.325658572547427,"lng": 106.65754697050981},
+    {"name": "Minimart Rawa Timur","type": "Shop","walk_min": 12,"meters": 960,"lat": -6.32971403982737,"lng": 106.65912332868893}
+  ],
+  "Serpong": [
+    {"name": "Sekolah Serpong Indah","type": "School","walk_min": 8,"meters": 640,"lat": -6.34077565580031,"lng": 106.66409649275137},
+    {"name": "Pasar Serpong Utara","type": "Market","walk_min": 10,"meters": 800,"lat": -6.328862506993621,"lng": 106.66066834372434},
+    {"name": "Klinik Serpong Sentosa","type": "Clinic","walk_min": 13,"meters": 1040,"lat": -6.338524433301543,"lng": 106.67321537439246}
+  ],
+  "Cisauk": [
+    {"name": "Alun-alun Cisauk Indah","type": "Square","walk_min": 7,"meters": 560,"lat": -6.328205056418831,"lng": 106.64271211864867},
+    {"name": "Sekolah Cisauk Utara","type": "School","walk_min": 8,"meters": 640,"lat": -6.327096126803001,"lng": 106.64347033868751},
+    {"name": "Pasar Cisauk Sentosa","type": "Market","walk_min": 14,"meters": 1120,"lat": -6.324707220567079,"lng": 106.64743061300179}
+  ],
+  "Cicayur": [
+    {"name": "Pasar Cicayur Jaya","type": "Market","walk_min": 4,"meters": 320,"lat": -6.348,"lng": 106.61900767042992},
+    {"name": "Klinik Cicayur Raya","type": "Clinic","walk_min": 9,"meters": 720,"lat": -6.35364083852655,"lng": 106.61864612923367},
+    {"name": "Masjid Cicayur Baru","type": "Mosque","walk_min": 11,"meters": 880,"lat": -6.354894358199116,"lng": 106.62587695315885}
+  ],
+  "Parung Panjang": [
+    {"name": "Klinik Parung Jaya","type": "Clinic","walk_min": 7,"meters": 560,"lat": -6.339702850022097,"lng": 106.56300391322713},
+    {"name": "Masjid Parung Raya","type": "Mosque","walk_min": 6,"meters": 480,"lat": -6.340800053963937,"lng": 106.56247396169806},
+    {"name": "Minimart Parung Baru","type": "Shop","walk_min": 9,"meters": 720,"lat": -6.339875357094893,"lng": 106.56021875521783}
+  ],
+  "Cilejit": [
+    {"name": "Taman Cilejit Timur","type": "Park","walk_min": 6,"meters": 480,"lat": -6.3401971810060385,"lng": 106.50525636897892},
+    {"name": "Alun-alun Cilejit Jaya","type": "Square","walk_min": 10,"meters": 800,"lat": -6.338156365890532,"lng": 106.50289440209856},
+    {"name": "Sekolah Cilejit Raya","type": "School","walk_min": 13,"meters": 1040,"lat": -6.335569905352052,"lng": 106.50189528455837}
+  ],
+  "Daru": [
+    {"name": "Minimart Daru Indah","type": "Shop","walk_min": 5,"meters": 400,"lat": -6.338478246655573,"lng": 106.47979553729618},
+    {"name": "Warung Daru Utara","type": "Eatery","walk_min": 10,"meters": 800,"lat": -6.335863582454316,"lng": 106.48307679012606},
+    {"name": "Kafe Daru Sentosa","type": "Cafe","walk_min": 12,"meters": 960,"lat": -6.332288842210019,"lng": 106.48264813540796}
+  ],
+  "Tenjo": [
+    {"name": "Klinik Tenjo Jaya","type": "Clinic","walk_min": 6,"meters": 480,"lat": -6.352201078766346,"lng": 106.44927926545346},
+    {"name": "Masjid Tenjo Raya","type": "Mosque","walk_min": 6,"meters": 480,"lat": -6.351096905471252,"lng": 106.44142955617066},
+    {"name": "Minimart Tenjo Baru","type": "Shop","walk_min": 9,"meters": 720,"lat": -6.344045723599281,"lng": 106.44845281664475}
+  ],
+  "Tigaraksa": [
+    {"name": "Warung Tigaraksa Sentosa","type": "Eatery","walk_min": 8,"meters": 640,"lat": -6.353393068961846,"lng": 106.42994054251031},
+    {"name": "Kafe Tigaraksa Timur","type": "Cafe","walk_min": 6,"meters": 480,"lat": -6.353586726876126,"lng": 106.43846493085498},
+    {"name": "Taman Tigaraksa Jaya","type": "Park","walk_min": 13,"meters": 1040,"lat": -6.365367223334329,"lng": 106.43711458959484}
+  ],
+  "Cikoya": [
+    {"name": "Klinik Cikoya Utara","type": "Clinic","walk_min": 7,"meters": 560,"lat": -6.360002850022097,"lng": 106.41960383841221},
+    {"name": "Masjid Cikoya Sentosa","type": "Mosque","walk_min": 11,"meters": 880,"lat": -6.3581000989338845,"lng": 106.41705208761637},
+    {"name": "Minimart Cikoya Timur","type": "Shop","walk_min": 10,"meters": 800,"lat": -6.359672618994326,"lng": 106.41629841167493}
+  ],
+  "Maja": [
+    {"name": "Alun-alun Maja Utara","type": "Square","walk_min": 6,"meters": 480,"lat": -6.365969571361199,"lng": 106.39114905749811},
+    {"name": "Sekolah Maja Sentosa","type": "School","walk_min": 10,"meters": 800,"lat": -6.370903490506257,"lng": 106.39072427055495},
+    {"name": "Pasar Maja Timur","type": "Market","walk_min": 12,"meters": 960,"lat": -6.373225077764698,"lng": 106.3853442987436}
+  ],
+  "Citeras": [
+    {"name": "Warung Citeras Indah","type": "Eatery","walk_min": 4,"meters": 320,"lat": -6.3742236519979345,"lng": 106.33052240741365},
+    {"name": "Kafe Citeras Utara","type": "Cafe","walk_min": 7,"meters": 560,"lat": -6.374505760849978,"lng": 106.33344639129295},
+    {"name": "Taman Citeras Sentosa","type": "Park","walk_min": 14,"meters": 1120,"lat": -6.372483068860841,"lng": 106.33938509482715}
+  ],
+  "Rangkasbitung": [
+    {"name": "Pasar Rangkasbitung Baru","type": "Market","walk_min": 6,"meters": 480,"lat": -6.349570208722438,"lng": 106.24915931666966},
+    {"name": "Klinik Rangkasbitung Indah","type": "Clinic","walk_min": 8,"meters": 640,"lat": -6.347941957544458,"lng": 106.24989533177441},
+    {"name": "Masjid Rangkasbitung Utara","type": "Mosque","walk_min": 13,"meters": 1040,"lat": -6.344343181009743,"lng": 106.25148258586658}
+  ],
+  "Grogol": [
+    {"name": "Minimart Grogol Sentosa","type": "Shop","walk_min": 7,"meters": 560,"lat": -6.170855334326134,"lng": 106.79155199433288},
+    {"name": "Warung Grogol Timur","type": "Eatery","walk_min": 9,"meters": 720,"lat": -6.171169515432874,"lng": 106.78667617820099},
+    {"name": "Kafe Grogol Jaya","type": "Cafe","walk_min": 9,"meters": 720,"lat": -6.166580843980031,"lng": 106.78403016345976}
+  ],
+  "Pesing": [
+    {"name": "Klinik Pesing Jaya","type": "Clinic","walk_min": 6,"meters": 480,"lat": -6.169982495803827,"lng": 106.76520174752916},
+    {"name": "Masjid Pesing Raya","type": "Mosque","walk_min": 11,"meters": 880,"lat": -6.173952526618651,"lng": 106.7696916315198},
+    {"name": "Minimart Pesing Baru","type": "Shop","walk_min": 11,"meters": 880,"lat": -6.169789837246014,"lng": 106.77464643831873}
+  ],
+  "Bojong Indah": [
+    {"name": "Kafe Bojong Indah","type": "Cafe","walk_min": 5,"meters": 400,"lat": -6.165554331898847,"lng": 106.74393900365465},
+    {"name": "Taman Bojong Utara","type": "Park","walk_min": 9,"meters": 720,"lat": -6.15733507120335,"lng": 106.74789281473164},
+    {"name": "Alun-alun Bojong Sentosa","type": "Square","walk_min": 10,"meters": 800,"lat": -6.168735757988511,"lng": 106.75238642645282}
+  ],
+  "Rawa Buaya": [
+    {"name": "Minimart Rawa Sentosa","type": "Shop","walk_min": 7,"meters": 560,"lat": -6.159951261823327,"lng": 106.73405576298649},
+    {"name": "Warung Rawa Timur","type": "Eatery","walk_min": 8,"meters": 640,"lat": -6.158481522182188,"lng": 106.73039539811907},
+    {"name": "Kafe Rawa Jaya","type": "Cafe","walk_min": 14,"meters": 1120,"lat": -6.157823676153647,"lng": 106.72343559830277}
+  ],
+  "Kalideres": [
+    {"name": "Minimart Kalideres Sentosa","type": "Shop","walk_min": 6,"meters": 480,"lat": -6.162105578894991,"lng": 106.70542296563654},
+    {"name": "Warung Kalideres Timur","type": "Eatery","walk_min": 12,"meters": 960,"lat": -6.152173979422834,"lng": 106.69710163530755},
+    {"name": "Kafe Kalideres Jaya","type": "Cafe","walk_min": 11,"meters": 880,"lat": -6.166472661504663,"lng": 106.70543397718428}
+  ],
+  "Poris": [
+    {"name": "Pasar Poris Timur","type": "Market","walk_min": 4,"meters": 320,"lat": -6.161353010946447,"lng": 106.66984446366595},
+    {"name": "Klinik Poris Jaya","type": "Clinic","walk_min": 7,"meters": 560,"lat": -6.16208881250898,"lng": 106.67268738128341},
+    {"name": "Masjid Poris Raya","type": "Mosque","walk_min": 11,"meters": 880,"lat": -6.16546043748589,"lng": 106.67548017058822}
+  ],
+  "Batu Ceper": [
+    {"name": "Pasar Batu Baru","type": "Market","walk_min": 4,"meters": 320,"lat": -6.165153010946447,"lng": 106.65404447831314},
+    {"name": "Klinik Batu Indah","type": "Clinic","walk_min": 9,"meters": 720,"lat": -6.165514187511545,"lng": 106.65828382095478},
+    {"name": "Masjid Batu Utara","type": "Mosque","walk_min": 14,"meters": 1120,"lat": -6.169822374982042,"lng": 106.66177483259632}
+  ],
+  "Tangerang": [
+    {"name": "Masjid Tangerang Timur","type": "Mosque","walk_min": 8,"meters": 640,"lat": -6.183674325026087,"lng": 106.62591731164274},
+    {"name": "Minimart Tangerang Jaya","type": "Shop","walk_min": 12,"meters": 960,"lat": -6.175660857277602,"lng": 106.63609514713917},
+    {"name": "Warung Tangerang Raya","type": "Eatery","walk_min": 9,"meters": 720,"lat": -6.17428009031419,"lng": 106.62260437667089}
+  ],
+  "Ancol": [
+    {"name": "Sekolah Ancol Raya","type": "School","walk_min": 7,"meters": 560,"lat": -6.12296038908601,"lng": 106.82987025663853},
+    {"name": "Pasar Ancol Baru","type": "Market","walk_min": 8,"meters": 640,"lat": -6.121118053483423,"lng": 106.8298436961854},
+    {"name": "Klinik Ancol Indah","type": "Clinic","walk_min": 9,"meters": 720,"lat": -6.1191842147841475,"lng": 106.83053236012563}
+  ],
+  "Tanjung Priok": [
+    {"name": "Pasar Tanjung Indah","type": "Market","walk_min": 7,"meters": 560,"lat": -6.104334507718021,"lng": 106.87558837332328},
+    {"name": "Klinik Tanjung Utara","type": "Clinic","walk_min": 10,"meters": 800,"lat": -6.099288489541215,"lng": 106.87746031457993},
+    {"name": "Masjid Tanjung Sentosa","type": "Mosque","walk_min": 11,"meters": 880,"lat": -6.098627338495337,"lng": 106.88363365396206}
+  ]
+};
+
+</script>
+
+<script>
+(function(){
+  if (!window.KRL_STATIONS || !window.KRL_EDGES || !window.KRL_LINES || !window.KRL_LANDMARKS) {
+    document.getElementById('krl-map').innerHTML =
+      '<div style="padding:20px;font-family:sans-serif;color:#b00;">' +
+      'Data files failed to load.</div>';
+    return;
+  }
+  const STATIONS = window.KRL_STATIONS;
+  const EDGES = window.KRL_EDGES;
+  const LINE_NAMES = window.KRL_LINES.names;
+  const LINE_COLORS = window.KRL_LINES.colors;
+  const TRANSFER_PENALTY = window.KRL_LINES.transferPenalty;
+  const LANDMARKS = window.KRL_LANDMARKS;
+
+  // ---- Graph ----
+  const adj = {};
+  Object.keys(STATIONS).forEach(s => adj[s] = []);
+  EDGES.forEach(([a,b,line,min]) => {
+    adj[a].push({to: b, line, minutes: min});
+    adj[b].push({to: a, line, minutes: min});
+  });
+  const allStations = Object.keys(STATIONS);
+  const N = allStations.length;
+
+  function computeTimes(origin) {
+    const dist = {};
+    allStations.forEach(s => dist[s] = Infinity);
+    dist[origin] = 0;
+    const pq = [{s: origin, line: null, t: 0}];
+    while (pq.length) {
+      pq.sort((a,b) => a.t - b.t);
+      const {s, line, t} = pq.shift();
+      if (t > dist[s] + TRANSFER_PENALTY) continue;
+      for (const edge of adj[s]) {
+        const isTransfer = (line !== null && line !== edge.line);
+        const nt = t + edge.minutes + (isTransfer ? TRANSFER_PENALTY : 0);
+        if (nt < dist[edge.to]) {
+          dist[edge.to] = nt;
+          pq.push({s: edge.to, line: edge.line, t: nt});
+        }
+      }
+    }
+    return dist;
+  }
+  function fmtTime(m) {
+    if (m < 60) return `${m} min`;
+    const h = Math.floor(m/60), mm = m%60;
+    return mm === 0 ? `${h}h` : `${h}h ${String(mm).padStart(2,'0')}`;
+  }
+  // For each line, find the two extreme reachable stations (the two ends of the
+  // reachable segment on that line). We pick the reachable station with the
+  // smallest and largest along-line index.
+  const lineOrder = {}; // line -> [station,...] in sequence order
+  (function buildLineOrder(){
+    Object.keys(LINE_NAMES).forEach(line => {
+      const stns = allStations.filter(n => STATIONS[n].lines.includes(line));
+      const lineAdj = {};
+      stns.forEach(s => lineAdj[s] = []);
+      EDGES.forEach(([a,b,l]) => {
+        if (l !== line) return;
+        if (lineAdj[a]) lineAdj[a].push(b);
+        if (lineAdj[b]) lineAdj[b].push(a);
+      });
+      // find an endpoint (degree 1) if any; else start anywhere
+      let start = stns.find(s => lineAdj[s].length <= 1) || stns[0];
+      const order = [], seen = new Set();
+      let cur = start, prev = null;
+      while (cur && !seen.has(cur)) {
+        order.push(cur); seen.add(cur);
+        const next = (lineAdj[cur] || []).find(n => n !== prev && !seen.has(n));
+        prev = cur; cur = next;
+      }
+      // add any stragglers (branches)
+      stns.forEach(s => { if (!seen.has(s)) order.push(s); });
+      lineOrder[line] = order;
+    });
+  })();
+
+  // A station is "furthest reachable" if in the reachable subgraph it has
+  // exactly one reachable neighbour — a topological dead-end.
+  function findTermini(dist, budget, origin) {
+    const reachableSet = new Set(
+      allStations.filter(n => n === origin || (isFinite(dist[n]) && dist[n] <= budget))
+    );
+    const termini = new Set();
+    reachableSet.forEach(name => {
+      if (name === origin) return;
+      const reachableNeighbours = adj[name].filter(e => reachableSet.has(e.to));
+      if (reachableNeighbours.length === 1) termini.add(name);
+    });
+    return termini;
+  }
+
+  // ---- Map ----
+  const map = L.map('krl-map', {
+    center: [-6.28, 106.82], zoom: 11,
+    zoomControl: true, attributionControl: true
+  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 18
+  }).addTo(map);
+
+  map.zoomControl.setPosition('topright');
+
+  const blobLayer = L.layerGroup().addTo(map);
+  const edgeLayer = L.layerGroup().addTo(map);
+  // Pane for small/unreached station dots — sits BELOW the gradient canvas
+  // so non-reachable stations don't stand out on top of the blob.
+  map.createPane('lowStations');
+  map.getPane('lowStations').style.zIndex = 380;
+  map.getPane('lowStations').style.pointerEvents = 'auto';
+  map.createPane('highStations');
+  map.getPane('highStations').style.zIndex = 610;
+  map.getPane('highStations').style.pointerEvents = 'auto';
+  const landmarkLayer = L.layerGroup().addTo(map);
+  const stationLayer = L.layerGroup().addTo(map);
+  const labelLayer = L.layerGroup().addTo(map);
+
+  // Build edges with line colors (subtle when not reached)
+  const edgeLines = [];
+  EDGES.forEach(([a,b,line]) => {
+    const sa = STATIONS[a], sb = STATIONS[b];
+    // shadow layer (wider, soft)
+    const shadow = L.polyline([[sa.lat, sa.lng], [sb.lat, sb.lng]], {
+      color: '#cdd4de', weight: 3, opacity: 0.55, interactive: false, lineCap: 'round'
+    }).addTo(edgeLayer);
+    const poly = L.polyline([[sa.lat, sa.lng], [sb.lat, sb.lng]], {
+      color: '#b6bcc8', weight: 1.5, opacity: 0.9, interactive: false, lineCap: 'round'
+    }).addTo(edgeLayer);
+    edgeLines.push({ a, b, line, poly, shadow });
+  });
+
+  const markerInfo = {};
+  const stationMarkers = {};
+  let highMarkers = {};
+  const labelMarkers = {};
+
+  // ---- Popup rendering ----
+  const LM_ICONS = {
+    Cafe:    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 10h14v4a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-4Z"/><path d="M17 11h2a2 2 0 0 1 0 4h-2"/><path d="M7 4v2M11 3v3M15 4v2"/></svg>',
+    Eatery:  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 3v8a3 3 0 0 0 6 0V3M7 3v18"/><path d="M17 14v7M15 3c-1.5 1.5-2 3.5-2 5 0 2 1 3.5 4 3.5"/></svg>',
+    Park:    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3l6 10H6l6-10Z"/><path d="M12 13v8"/></svg>',
+    Square:  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>',
+    School:  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 10l9-5 9 5-9 5-9-5Z"/><path d="M7 12v5c3 2 7 2 10 0v-5"/></svg>',
+    Shop:    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16l-1 11H5L4 8Z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg>',
+    Market:  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8h18l-2 5H5L3 8Z"/><path d="M5 13v7h14v-7"/></svg>',
+    Clinic:  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>',
+    Mosque:  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V12a8 8 0 0 1 16 0v8"/><path d="M4 20h16M12 4v4"/></svg>'
+  };
+
+  function renderPopup(name) {
+    const s = STATIONS[name];
+    const lms = LANDMARKS[name] || [];
+    const isOrigin = (name === origin);
+    const travelMin = currentDist[name];
+    const lineChips = s.lines.map(l =>
+      `<span class="line-chip" style="background:${LINE_COLORS[l]}">${LINE_NAMES[l]}</span>`
+    ).join('');
+
+    const travelHtml = isOrigin
+      ? `<div class="popup-travel"><span class="t-lbl">This is your origin</span></div>`
+      : (isFinite(travelMin)
+          ? `<div class="popup-travel">
+               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7588" stroke-width="2" stroke-linecap="round">
+                 <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+               </svg>
+               <span class="t-lbl">From ${origin}</span>
+               <span class="t-val" style="margin-left:auto;">${fmtTime(travelMin)}</span>
+             </div>`
+          : `<div class="popup-travel"><span class="t-lbl">Not reachable yet</span></div>`);
+
+    const setBtn = isOrigin
+      ? `<div class="origin-badge">
+           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 12l5 5L20 6"/></svg>
+           Current origin
+         </div>`
+      : `<button class="set-origin-btn" data-setorigin="${name.replace(/"/g,'&quot;')}">
+           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v18M3 12h18"/></svg>
+           Set as origin
+         </button>`;
+
+    const itemsHtml = lms.map(lm => `
+      <div class="popup-item">
+        <div class="l">
+          <div class="l-icon">${LM_ICONS[lm.type] || LM_ICONS.Square}</div>
+          <div class="l-text">
+            <span class="name">${lm.name}</span>
+            <div class="type">${lm.type}</div>
+          </div>
+        </div>
+        <div class="meta"><b>${lm.walk_min} min</b>${lm.meters} m</div>
+      </div>`).join('');
+
+    return `
+      <div class="popup-header">
+        <div class="popup-title">${name}</div>
+        <div class="popup-sub">${lineChips}</div>
+        ${travelHtml}
+        ${setBtn}
+      </div>
+      <div class="section-label">Within walking distance</div>
+      <div class="popup-list">${itemsHtml}</div>`;
+  }
+
+  Object.entries(STATIONS).forEach(([name, s]) => {
+    const marker = L.marker([s.lat, s.lng], {
+      pane: 'lowStations',
+      icon: L.divIcon({
+        className: 'stn-marker',
+        html: '<div class="stn-dot hidden-hit"></div>',
+        iconSize: [22, 22], iconAnchor: [11, 11]
+      })
+    });
+    marker.bindPopup('', {
+      className: 'stn-popup', closeButton: true, offset: [0, -4],
+      autoPan: true, maxWidth: 264, minWidth: 264
+    });
+    marker.on('mouseover', function(){
+      const lbl = labelMarkers[name];
+      if (!labelLayer.hasLayer(lbl)) labelLayer.addLayer(lbl);
+      lbl.setZIndexOffset(1000);
+    });
+    marker.on('mouseout', function(){
+      const info = markerInfo[name];
+      if (info && info.alwaysLabel) return;
+      const lbl = labelMarkers[name];
+      if (labelLayer.hasLayer(lbl)) labelLayer.removeLayer(lbl);
+    });
+    marker.on('popupopen', function() {
+      this.setPopupContent(renderPopup(name));
+      showLandmarks(name);
+      // Bind click AFTER content is set (map.on popupopen fires earlier)
+      setTimeout(() => {
+        const el = this.getPopup().getElement();
+        if (!el) return;
+        el.querySelectorAll('[data-setorigin]').forEach(btn => {
+          btn.onclick = (ev) => {
+            ev.preventDefault(); ev.stopPropagation();
+            const n = btn.getAttribute('data-setorigin');
+            map.closePopup();
+            setOrigin(n);
+          };
+        });
+      }, 0);
+    });
+    marker.on('popupclose', clearLandmarks);
+    marker.addTo(stationLayer);
+    stationMarkers[name] = marker;
+
+    // High-pane twin marker for origin/terminus/interchange states
+    const highMarker = L.marker([s.lat, s.lng], {
+      pane: 'highStations',
+      interactive: false,
+      icon: L.divIcon({ className: 'stn-marker', html: '', iconSize: [22,22], iconAnchor: [11,11] })
+    }).addTo(stationLayer);
+    highMarkers = window._krlHighMarkers = window._krlHighMarkers || {};
+    highMarkers[name] = highMarker;
+
+    const label = L.marker([s.lat, s.lng], {
+      icon: L.divIcon({
+        className: 'stn-label',
+        html: `<div style="padding-left:10px;">${name}</div>`,
+        iconSize: [null, 16], iconAnchor: [-6, 8]
+      }),
+      interactive: false
+    });
+    labelMarkers[name] = label;
+  });
+
+  // Global delegation fallback — catches clicks even if the marker-level binder misses
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest && ev.target.closest('[data-setorigin]');
+    if (!btn) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const n = btn.getAttribute('data-setorigin');
+    map.closePopup();
+    setOrigin(n);
+  }, true);
+
+  function showLandmarks(stationName) {
+    clearLandmarks();
+    const lms = LANDMARKS[stationName] || [];
+    lms.forEach(lm => {
+      L.marker([lm.lat, lm.lng], {
+        icon: L.divIcon({
+          className: 'stn-marker',
+          html: '<div class="landmark-dot"></div>',
+          iconSize: [14,14], iconAnchor: [7,7]
+        }),
+        interactive: false
+      }).addTo(landmarkLayer);
+      L.marker([lm.lat, lm.lng], {
+        icon: L.divIcon({
+          className: 'landmark-label',
+          html: `<div style="padding-left:10px;">${lm.name}</div>`,
+          iconSize: [null, 14], iconAnchor: [-7, 7]
+        }),
+        interactive: false
+      }).addTo(landmarkLayer);
+    });
+  }
+  function clearLandmarks() { landmarkLayer.clearLayers(); }
+
+  // ---- State ----
+  let origin = 'Rawa Buntu';
+  let currentDist = computeTimes(origin);
+
+  const slider = document.getElementById('time-slider');
+  const chip = document.getElementById('time-chip');
+  const originNameEl = document.getElementById('origin-name');
+  // (old stat refs removed — new stat elements accessed directly in render)
+  const playBtn = document.getElementById('play');
+  const playIcon = document.getElementById('play-icon');
+  const resetBtn = document.getElementById('reset');
+  const searchInput = document.getElementById('search-input');
+  const searchResults = document.getElementById('search-results');
+
+
+  function updateChip() {
+    const min = parseInt(slider.value, 10);
+    const max = parseInt(slider.max, 10);
+    const minV = parseInt(slider.min, 10);
+    const pct = ((min - minV) / (max - minV)) * 100;
+    chip.textContent = fmtTime(min);
+    chip.style.left = `calc(${pct}% + 8px)`;
+    slider.style.setProperty('--pct', pct + '%');
+  }
+
+  // ---- Blob merging ----
+  let BLOB_RADIUS_KM = 4.0;
+  const CIRCLE_STEPS = 48;
+  let stationCirclePoly = {};
+  function rebuildCircles() {
+    stationCirclePoly = {};
+    Object.entries(STATIONS).forEach(([name, s]) => {
+      stationCirclePoly[name] = turf.circle(
+        [s.lng, s.lat], BLOB_RADIUS_KM,
+        { steps: CIRCLE_STEPS, units: 'kilometers' }
+      );
+    });
+  }
+  rebuildCircles();
+
+  function buildBlobFeature(stationNames) {
+    if (!stationNames.length) return null;
+    let merged = stationCirclePoly[stationNames[0]];
+    for (let i = 1; i < stationNames.length; i++) {
+      try { merged = turf.union(merged, stationCirclePoly[stationNames[i]]); }
+      catch (err) {}
+    }
+    return merged;
+  }
+
+  // ---- Gradient blob renderer (canvas overlay, merges smoothly) ----
+  // Draws a radial gradient per reachable station onto a canvas using
+  // 'lighten' composite mode, so overlaps merge to the max alpha instead
+  // of stacking (which would darken). Result: continuous soft blob that
+  // fades from ~20% opacity at station centers to ~3% at the edge.
+  const gradientCanvasLayer = L.layerGroup().addTo(map);
+  let _gradCanvas = null;
+
+  function ensureCanvas() {
+    if (_gradCanvas && _gradCanvas._map) return _gradCanvas;
+    const CanvasOverlay = L.Layer.extend({
+      onAdd: function(m) {
+        const c = L.DomUtil.create('canvas', 'leaflet-zoom-animated');
+        c.style.pointerEvents = 'none';
+        c.style.position = 'absolute';
+        m.getPanes().overlayPane.appendChild(c);
+        this._canvas = c;
+        m.on('moveend zoomend resize viewreset zoomanim', this._reset, this);
+        this._reset();
+      },
+      onRemove: function(m) {
+        if (this._canvas && this._canvas.parentNode) this._canvas.parentNode.removeChild(this._canvas);
+        m.off('moveend zoomend resize viewreset zoomanim', this._reset, this);
+      },
+      _reset: function() {
+        const size = this._map.getSize();
+        const topLeft = this._map.containerPointToLayerPoint([0, 0]);
+        L.DomUtil.setPosition(this._canvas, topLeft);
+        const dpr = window.devicePixelRatio || 1;
+        this._canvas.width = size.x * dpr;
+        this._canvas.height = size.y * dpr;
+        this._canvas.style.width = size.x + 'px';
+        this._canvas.style.height = size.y + 'px';
+        this._dpr = dpr;
+        if (this._draw) this._draw();
+      },
+      setDraw: function(fn) { this._draw = fn; if (this._canvas) fn(); },
+      redraw: function() { if (this._draw) this._draw(); }
+    });
+    _gradCanvas = new CanvasOverlay();
+    _gradCanvas.addTo(map);
+    return _gradCanvas;
+  }
+  const overlay = ensureCanvas();
+  map.on('move zoom', () => overlay._reset && overlay._reset());
+
+  function renderBlob(stationNames) {
+    blobLayer.clearLayers();
+    overlay.setDraw(() => {
+      const c = overlay._canvas;
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      const dpr = overlay._dpr || 1;
+      const W = c.width, H = c.height;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      ctx.scale(dpr, dpr);
+      const cssW = W / dpr, cssH = H / dpr;
+
+      // km-to-px helper at a reference latitude
+      function kmToPx(refLat, km) {
+        const p0 = map.latLngToContainerPoint([refLat, 0]);
+        const p1 = map.latLngToContainerPoint([refLat, km / (111.32 * Math.cos(refLat * Math.PI / 180))]);
+        return Math.max(4, Math.hypot(p1.x - p0.x, p1.y - p0.y));
+      }
+
+      // ── TRUE METABALL MERGE via offscreen canvas ──────────────────────────
+      // Strategy: paint all blobs onto an offscreen canvas using 'source-over'
+      // but with 'lighter' blending mode replaced by a smarter approach:
+      // 1. Draw each blob as pure alpha (white on transparent) to an alpha-only buffer
+      //    using 'lighten' so overlapping alphas take the MAX not SUM.
+      // 2. Tint the result with the fill color at a single flat opacity.
+      // This gives Chronotrains-style merging: overlaps don't stack darker.
+      // ─────────────────────────────────────────────────────────────────────
+      const off = document.createElement('canvas');
+      off.width = W; off.height = H;
+      const octx = off.getContext('2d');
+      octx.scale(dpr, dpr);
+
+      if (mode === 'car') {
+        if (!stationNames.length) return;
+        const budget = parseInt(slider.value, 10);
+        if (budget <= 0) return;
+        const o = STATIONS[origin];
+        const km = (28 / 60) * budget;
+        const pxR = kmToPx(o.lat, km);
+        const p = map.latLngToContainerPoint([o.lat, o.lng]);
+
+        // Draw alpha shape to offscreen
+        octx.globalCompositeOperation = 'source-over';
+        const grad = octx.createRadialGradient(p.x, p.y, 0, p.x, p.y, pxR);
+        grad.addColorStop(0.00, 'rgba(255,255,255,0.95)');
+        grad.addColorStop(0.80, 'rgba(255,255,255,0.90)');
+        grad.addColorStop(0.95, 'rgba(255,255,255,0.50)');
+        grad.addColorStop(1.00, 'rgba(255,255,255,0.00)');
+        octx.fillStyle = grad;
+        octx.beginPath(); octx.arc(p.x, p.y, pxR, 0, Math.PI * 2); octx.fill();
+
+        // Tint: multiply alpha channel with the fill color
+        octx.globalCompositeOperation = 'source-in';
+        octx.fillStyle = 'rgba(16,185,129,0.38)';
+        octx.fillRect(0, 0, cssW, cssH);
+
+        // Stamp onto main canvas
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(off, 0, 0, cssW, cssH);
+
+        // Solid outline ring
+        ctx.strokeStyle = 'rgba(5,150,105,0.40)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(p.x, p.y, pxR, 0, Math.PI * 2); ctx.stroke();
+        return;
+      }
+
+      // ── Transun mode ──────────────────────────────────────────────────────
+      if (!stationNames.length) return;
+      const refLat = STATIONS[stationNames[0]].lat;
+      const pxR = kmToPx(refLat, BLOB_RADIUS_KM);
+
+      // Step 1: paint all blobs onto offscreen with 'lighten' (max-alpha merge)
+      octx.globalCompositeOperation = 'source-over';
+      for (const name of stationNames) {
+        const s = STATIONS[name];
+        const p = map.latLngToContainerPoint([s.lat, s.lng]);
+        // Each blob: white circle fading to transparent. 'lighten' = max(a1,a2) not sum.
+        octx.globalCompositeOperation = 'lighten';
+        const grad = octx.createRadialGradient(p.x, p.y, 0, p.x, p.y, pxR);
+        grad.addColorStop(0.00, 'rgba(255,255,255,0.95)');
+        grad.addColorStop(0.75, 'rgba(255,255,255,0.90)');
+        grad.addColorStop(0.93, 'rgba(255,255,255,0.50)');
+        grad.addColorStop(1.00, 'rgba(255,255,255,0.00)');
+        octx.fillStyle = grad;
+        octx.beginPath(); octx.arc(p.x, p.y, pxR, 0, Math.PI * 2); octx.fill();
+      }
+
+      // Step 2: tint the merged alpha mask with the fill color
+      octx.globalCompositeOperation = 'source-in';
+      octx.fillStyle = 'rgba(16,185,129,0.38)';
+      octx.fillRect(0, 0, cssW, cssH);
+
+      // Step 3: stamp onto main canvas
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(off, 0, 0, cssW, cssH);
+    });
+
+    // Merged outline for Transun mode
+    if (mode === 'krl' && stationNames.length) {
+      let merged = null;
+      for (const name of stationNames) {
+        const s = STATIONS[name];
+        const circ = turf.circle([s.lng, s.lat], BLOB_RADIUS_KM, { steps: 40, units: 'kilometers' });
+        if (!merged) merged = circ;
+        else { try { merged = turf.union(merged, circ); } catch(e) {} }
+      }
+      if (merged) {
+        L.geoJSON(merged, {
+          interactive: false,
+          style: {
+            color: '#059669', weight: 1.2, opacity: 0.40,
+            fillOpacity: 0, lineJoin: 'round', lineCap: 'round'
+          }
+        }).addTo(blobLayer);
+      }
+    }
+  }
+
+  function render() {
+    const budget = parseInt(slider.value, 10);
+    const termini = findTermini(currentDist, budget, origin);
+
+    edgeLines.forEach(edge => {
+      if (mode === 'car') {
+        // In car mode, hide rail lines — they're irrelevant
+        edge.shadow.setStyle({ opacity: 0 });
+        edge.poly.setStyle({ opacity: 0 });
+        return;
+      }
+      const ta = currentDist[edge.a];
+      const tb = currentDist[edge.b];
+      if (ta <= budget && tb <= budget) {
+        edge.shadow.setStyle({ color: 'rgba(16,185,129,0.30)', weight: 5, opacity: 1 });
+        edge.poly.setStyle({ color: '#059669', weight: 2.2, opacity: 0.95 });
+      } else {
+        edge.shadow.setStyle({ opacity: 0 });
+        edge.poly.setStyle({ opacity: 0 });
+      }
+    });
+
+    const blobStations = [];
+    const reachable = [];
+    Object.entries(STATIONS).forEach(([name, s]) => {
+      const t = currentDist[name];
+      const isOrigin = name === origin;
+      if (isOrigin || (t <= budget && isFinite(t))) {
+        blobStations.push(name);
+        if (!isOrigin) reachable.push(name);
+      }
+    });
+
+    renderBlob(blobStations);
+
+    Object.entries(STATIONS).forEach(([name, s]) => {
+      const isOrigin = name === origin;
+      const isTerminus = termini.has(name);
+      const isReachable = isFinite(currentDist[name]) && currentDist[name] <= budget;
+      let cls, size, alwaysLabel = false, labelClass = '';
+      // A station is an interchange only if its reachable edges span 2+ distinct
+      // lines — meaning you'd actually need to change trains there right now.
+      const reachableEdgeLines = adj[name]
+        .filter(e => isFinite(currentDist[e.to]) && currentDist[e.to] <= budget)
+        .map(e => e.line);
+      const isInterchange = isReachable && new Set(reachableEdgeLines).size > 1;
+
+      if (mode === 'car') {
+        // Car mode: only show origin station
+        if (isOrigin) { cls = 'stn-dot origin'; size = 22; alwaysLabel = true; labelClass = 'origin'; }
+        else { cls = 'stn-dot hidden-hit'; size = 22; }
+      } else {
+        if (isOrigin) { cls = 'stn-dot origin'; size = 22; alwaysLabel = true; labelClass = 'origin'; }
+        else if (isTerminus) { cls = 'stn-dot terminus'; size = 22; /* no alwaysLabel — hover only */ }
+        else if (isInterchange && isReachable) { cls = 'stn-dot interchange'; size = 22; }
+        else if (isReachable) { cls = 'stn-dot reachable-small'; size = 22; }
+        else { cls = 'stn-dot hidden-hit'; size = 22; } // hidden when not reachable
+      }
+
+      const showHighPane = isOrigin || (mode !== 'car' && (isTerminus || (isInterchange && isReachable)));
+      // For regular reachable small dots, render directly (not via highPane)
+      const isSmallReachable = !showHighPane && isReachable && mode !== 'car';
+      stationMarkers[name].setIcon(L.divIcon({
+        className: 'stn-marker',
+        html: showHighPane
+          ? '<div class="stn-dot hidden-hit"></div>'
+          : isSmallReachable
+            ? `<div class="${cls}" style="margin:8px auto;"></div>`
+            : `<div class="${cls}" style="margin:${(22 - 5)/2}px auto;"></div>`,
+        iconSize: [size, size], iconAnchor: [size/2, size/2]
+      }));
+      // Paint highlight on the high-pane marker for origin/terminus/interchange
+      const highHtml = showHighPane
+        ? `<div class="${cls}" style="margin:${(22 - (isOrigin?16:isTerminus?10:10))/2}px auto;"></div>`
+        : '';
+      if (highMarkers[name]) {
+        highMarkers[name].setIcon(L.divIcon({ className: 'stn-marker', html: highHtml, iconSize: [22,22], iconAnchor: [11,11] }));
+      }
+      markerInfo[name] = { alwaysLabel };
+
+      const existingLbl = labelMarkers[name];
+      if (labelLayer.hasLayer(existingLbl)) labelLayer.removeLayer(existingLbl);
+      if (alwaysLabel) {
+        const newLabel = L.marker([s.lat, s.lng], {
+          icon: L.divIcon({
+            className: `stn-label ${labelClass}`,
+            html: `<div style="padding-left:${isOrigin?14:11}px;">${name}</div>`,
+            iconSize: [null, 16], iconAnchor: [-6, 8]
+          }),
+          interactive: false
+        });
+        labelMarkers[name] = newLabel;
+        labelLayer.addLayer(newLabel);
+      }
+    });
+
+    // ── Numbers panel ────────────────────────────────────────────────────
+    const JKT_BDG_KM = 153;
+    const totalLandmarks = Object.values(LANDMARKS).reduce((s, arr) => s + arr.length, 0);
+
+    function countReachableLandmarks(distMap, bdg) {
+      let count = 0;
+      Object.entries(LANDMARKS).forEach(([stn, lms]) => {
+        const t = distMap[stn];
+        if (stn === origin || (isFinite(t) && t <= bdg)) count += lms.length;
+      });
+      return count;
+    }
+    function farthestKm(distMap, bdg) {
+      const o = STATIONS[origin];
+      let maxKm = 0;
+      allStations.forEach(name => {
+        if (name === origin) return;
+        const t = distMap[name];
+        if (!isFinite(t) || t > bdg) return;
+        const km = turf.distance([o.lng, o.lat], [STATIONS[name].lng, STATIONS[name].lat], { units: 'kilometers' });
+        if (km > maxKm) maxKm = km;
+      });
+      return maxKm;
+    }
+
+    document.getElementById('stat-lm-total').textContent = totalLandmarks;
+
+    // Always compute KRL values for comparison
+    const krlDist     = (mode === 'krl') ? currentDist : computeTimes(origin);
+    const krlKm       = farthestKm(krlDist, budget);
+    const krlDistPct  = Math.min(100, Math.round(krlKm / JKT_BDG_KM * 100));
+    const krlLmCount  = countReachableLandmarks(krlDist, budget);
+    const krlLmPct    = totalLandmarks ? Math.round(krlLmCount / totalLandmarks * 100) : 0;
+
+    const distBlock = document.getElementById('stat-distance');
+    const lmBlock   = document.getElementById('stat-landmarks');
+
+    if (mode === 'car') {
+      const carKm      = (28 / 60) * budget;
+      const carDistPct = Math.min(100, Math.round(carKm / JKT_BDG_KM * 100));
+      const carLmCount = countReachableLandmarks(currentDist, budget);
+      const carLmPct   = totalLandmarks ? Math.round(carLmCount / totalLandmarks * 100) : 0;
+
+      // Orange theme for car mode
+      distBlock.className = 'stat-block stat-theme-orange';
+      lmBlock.className   = 'stat-block stat-theme-orange';
+
+      // Dist: show car number, orange bar on top, green (transun) below
+      document.getElementById('stat-dist-val').textContent  = Math.round(carKm);
+      document.getElementById('stat-dist-pct').textContent  = carDistPct;
+      document.getElementById('bar-dist-orange').style.width = carDistPct + '%';
+      document.getElementById('bar-dist-green').style.width  = krlDistPct + '%';
+      document.getElementById('bar-dist-orange-track').classList.add('visible');
+
+      // Landmarks: show car number, orange on top, green below
+      document.getElementById('stat-lm-val').textContent    = carLmPct;
+      document.getElementById('stat-lm-count').textContent  = carLmCount;
+      document.getElementById('bar-lm-orange').style.width  = carLmPct + '%';
+      document.getElementById('bar-lm-green').style.width   = krlLmPct + '%';
+      document.getElementById('bar-lm-orange-track').classList.add('visible');
+
+    } else {
+      // Green theme for Transun mode; orange bar hidden (width 0)
+      distBlock.className = 'stat-block stat-theme-green';
+      lmBlock.className   = 'stat-block stat-theme-green';
+
+      document.getElementById('stat-dist-val').textContent  = Math.round(krlKm);
+      document.getElementById('stat-dist-pct').textContent  = krlDistPct;
+      document.getElementById('bar-dist-green').style.width  = krlDistPct + '%';
+      document.getElementById('bar-dist-orange').style.width = '0%';
+      document.getElementById('bar-dist-orange-track').classList.remove('visible');
+
+      document.getElementById('stat-lm-val').textContent    = krlLmPct;
+      document.getElementById('stat-lm-count').textContent  = krlLmCount;
+      document.getElementById('bar-lm-green').style.width   = krlLmPct + '%';
+      document.getElementById('bar-lm-orange').style.width  = '0%';
+      document.getElementById('bar-lm-orange-track').classList.remove('visible');
+    }
+  }
+
+  function setOrigin(name) {
+    if (!STATIONS[name]) return;
+    origin = name;
+    originNameEl.textContent = name;
+    recomputeDist();
+    map.panTo([STATIONS[name].lat, STATIONS[name].lng], { animate: true, duration: 0.6 });
+    render();
+    hideSearch();
+    searchInput.value = '';
+  }
+
+  slider.addEventListener('input', () => { stopPlay(); updateChip(); render(); });
+
+  let playState = 'stopped', rafId = null, playStartTime = 0;
+  const PLAY_DURATION_MS = 12000;
+  function setPlayIcon(playing) {
+    if (playing) {
+      playIcon.innerHTML = '<rect x="3" y="2" width="3" height="10" fill="currentColor"/><rect x="8" y="2" width="3" height="10" fill="currentColor"/>';
+      playBtn.classList.add('active');
+    } else {
+      playIcon.innerHTML = '<polygon points="3,2 12,7 3,12" fill="currentColor"/>';
+      playBtn.classList.remove('active');
+    }
+  }
+  function easeInOutCubic(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+  function playLoop(now) {
+    const elapsed = now - playStartTime;
+    const t = Math.min(1, elapsed / PLAY_DURATION_MS);
+    const eased = easeInOutCubic(t);
+    const minV = parseInt(slider.min, 10), maxV = parseInt(slider.max, 10);
+    slider.value = Math.round(minV + eased * (maxV - minV));
+    updateChip(); render();
+    if (t < 1) rafId = requestAnimationFrame(playLoop);
+    else stopPlay();
+  }
+  function startPlay() {
+    playState = 'playing'; setPlayIcon(true);
+    slider.value = slider.min; updateChip(); render();
+    playStartTime = performance.now();
+    rafId = requestAnimationFrame(playLoop);
+  }
+  function stopPlay() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    playState = 'stopped'; setPlayIcon(false);
+  }
+  playBtn.addEventListener('click', () => { if (playState==='playing') stopPlay(); else startPlay(); });
+  resetBtn.addEventListener('click', () => { stopPlay(); slider.value = 30; updateChip(); render(); });
+
+  // ---- Search ----
+  let selectedIdx = -1;
+  function highlightMatch(text, q) {
+    if (!q) return text;
+    const idx = text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx === -1) return text;
+    return text.slice(0, idx) + '<mark>' + text.slice(idx, idx + q.length) + '</mark>' + text.slice(idx + q.length);
+  }
+  function renderSearchResults(filter) {
+    const q = filter.trim().toLowerCase();
+    let results;
+    if (!q) results = allStations.slice().sort();
+    else results = allStations.filter(s => s.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const ai = a.toLowerCase().indexOf(q);
+        const bi = b.toLowerCase().indexOf(q);
+        if (ai !== bi) return ai - bi;
+        return a.localeCompare(b);
+      });
+    selectedIdx = results.length > 0 ? 0 : -1;
+    if (results.length === 0) {
+      searchResults.innerHTML = '<div class="search-row" style="color:#98a1b3;cursor:default;">No stations match</div>';
+      searchResults.style.display = 'block';
+      return;
+    }
+    searchResults.innerHTML = results.slice(0, 60).map((name, i) => {
+      const lineDots = STATIONS[name].lines.map(l =>
+        `<span style="background:${LINE_COLORS[l]};" title="${LINE_NAMES[l]}"></span>`
+      ).join('');
+      const linesLabel = STATIONS[name].lines.map(l => LINE_NAMES[l].slice(0,3)).join(' · ');
+      return `<div class="search-row${i===selectedIdx?' active':''}" data-name="${name}" data-idx="${i}">
+        <span class="stn-name">${highlightMatch(name, q)}</span>
+        <span class="meta-r">
+          <span class="lines-label">${linesLabel}</span>
+          <span class="line-dots">${lineDots}</span>
+        </span></div>`;
+    }).join('');
+    searchResults.style.display = 'block';
+    searchResults.querySelectorAll('.search-row[data-name]').forEach(el => {
+      el.addEventListener('mousedown', (e) => { e.preventDefault(); setOrigin(el.dataset.name); });
+      el.addEventListener('mouseenter', () => {
+        selectedIdx = parseInt(el.dataset.idx, 10);
+        searchResults.querySelectorAll('.search-row').forEach(r => r.classList.remove('active'));
+        el.classList.add('active');
+      });
+    });
+  }
+  function hideSearch() { searchResults.style.display = 'none'; }
+  searchInput.addEventListener('focus', () => renderSearchResults(searchInput.value));
+  searchInput.addEventListener('input', () => renderSearchResults(searchInput.value));
+  searchInput.addEventListener('blur', () => { setTimeout(hideSearch, 150); });
+  searchInput.addEventListener('keydown', (e) => {
+    if (searchResults.style.display !== 'block') return;
+    const rows = searchResults.querySelectorAll('.search-row[data-name]');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedIdx = Math.min(selectedIdx + 1, rows.length - 1);
+      rows.forEach((r, i) => r.classList.toggle('active', i === selectedIdx));
+      if (rows[selectedIdx]) rows[selectedIdx].scrollIntoView({block: 'nearest'});
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedIdx = Math.max(selectedIdx - 1, 0);
+      rows.forEach((r, i) => r.classList.toggle('active', i === selectedIdx));
+      if (rows[selectedIdx]) rows[selectedIdx].scrollIntoView({block: 'nearest'});
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (rows[selectedIdx]) setOrigin(rows[selectedIdx].dataset.name);
+    } else if (e.key === 'Escape') { hideSearch(); searchInput.blur(); }
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) hideSearch();
+  });
+
+  const bounds = L.latLngBounds(Object.values(STATIONS).map(s => [s.lat, s.lng]));
+  map.fitBounds(bounds, { padding: [120, 80], paddingTopLeft: [80, 140] });
+
+  // ---- Mode (krl | car) ----
+  let mode = 'krl';
+  // Car reachable time: crow-fly km / avg 30 km/h -> minutes, rounded up to 5
+  function computeCarTimes(originName) {
+    const dist = {};
+    const o = STATIONS[originName];
+    allStations.forEach(name => {
+      if (name === originName) { dist[name] = 0; return; }
+      const s = STATIONS[name];
+      const km = turf.distance([o.lng, o.lat], [s.lng, s.lat], { units: 'kilometers' });
+      const minRaw = (km / 28) * 60; // 28 km/h avg urban
+      dist[name] = Math.max(5, Math.ceil(minRaw / 5) * 5);
+    });
+    return dist;
+  }
+  function recomputeDist() {
+    currentDist = (mode === 'car') ? computeCarTimes(origin) : computeTimes(origin);
+  }
+
+  const modeKrlBtn = document.getElementById('mode-krl');
+  const modeCarBtn = document.getElementById('mode-car');
+  const modeLabel = document.getElementById('mode-label');
+  function setMode(m) {
+    if (mode === m) return;
+    mode = m;
+    modeKrlBtn.classList.toggle('active', m === 'krl');
+    modeCarBtn.classList.toggle('active', m === 'car');
+    modeLabel.textContent = m === 'car' ? 'Mobil' : 'Transun';
+    recomputeDist();
+    render();
+  }
+  modeKrlBtn.addEventListener('click', () => setMode('krl'));
+  modeCarBtn.addEventListener('click', () => setMode('car'));
+
+  // Radius slider wiring
+  const radiusSlider = document.getElementById('radius-slider');
+  const radiusVal = document.getElementById('radius-val');
+  radiusSlider.addEventListener('input', () => {
+    BLOB_RADIUS_KM = parseFloat(radiusSlider.value);
+    radiusVal.textContent = BLOB_RADIUS_KM.toFixed(1);
+    rebuildCircles();
+    render();
+  });
+
+  updateChip();
+  render();
+})();
+</script>
+</body>
+</html>
